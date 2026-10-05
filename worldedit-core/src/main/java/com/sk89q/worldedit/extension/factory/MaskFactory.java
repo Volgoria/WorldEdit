@@ -20,7 +20,9 @@
 package com.sk89q.worldedit.extension.factory;
 
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.mask.AdjacentMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.AirMaskParser;
+import com.sk89q.worldedit.extension.factory.parser.mask.AngleMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.BiomeMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.BlockCategoryMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.BlockStateMaskParser;
@@ -36,6 +38,7 @@ import com.sk89q.worldedit.extension.factory.parser.mask.NoiseMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.OffsetMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.RegionMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.SolidMaskParser;
+import com.sk89q.worldedit.extension.factory.parser.mask.YRangeMaskParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.NoMatchException;
 import com.sk89q.worldedit.extension.input.ParserContext;
@@ -83,6 +86,9 @@ public final class MaskFactory extends AbstractFactory<Mask> {
 
         register(new BlockCategoryMaskParser(worldEdit));
         register(new BiomeMaskParser(worldEdit));
+        register(new YRangeMaskParser(worldEdit));
+        register(new AngleMaskParser(worldEdit));
+        register(new AdjacentMaskParser(worldEdit));
     }
 
     @Override
