@@ -325,7 +325,8 @@ public class BuildCommands {
                     @ArgFlag(name = 's', desc = "The seed of the random generator")
                         Integer seed) throws WorldEditException {
         checkCommandArgument(size >= 0.5, "Size must be at least 0.5");
-        checkCommandArgument(length >= 1, "Length must be at least 1");
+        checkCommandArgument(length >= 1 && length <= CaveCarver.MAX_LENGTH,
+            "Length must be between 1 and " + CaveCarver.MAX_LENGTH);
         checkCommandArgument(count >= 1 && count <= 64, "Count must be between 1 and 64");
         checkRadii(worldEdit, size);
 

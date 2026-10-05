@@ -29,6 +29,7 @@ import org.bukkit.event.inventory.ClickType;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Browses WorldEdit's image folder: builds pixel art and imports heightmaps,
@@ -43,6 +44,11 @@ final class ImageMenu extends FileBrowserMenu {
     @Override
     protected Path folder() {
         return gui.imagesFolder();
+    }
+
+    @Override
+    protected List<String> browsePermissions() {
+        return GuiCommands.IMAGE_BROWSE_PERMISSIONS;
     }
 
     @Override

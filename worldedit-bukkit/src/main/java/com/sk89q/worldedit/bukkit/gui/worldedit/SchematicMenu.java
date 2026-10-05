@@ -30,6 +30,7 @@ import org.bukkit.event.inventory.ClickType;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Browses the schematics folder: loads, inspects, renames and copies
@@ -44,6 +45,11 @@ final class SchematicMenu extends FileBrowserMenu {
     @Override
     protected Path folder() {
         return gui.schematicsFolder();
+    }
+
+    @Override
+    protected List<String> browsePermissions() {
+        return GuiCommands.SCHEMATIC_BROWSE_PERMISSIONS;
     }
 
     @Override

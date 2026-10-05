@@ -233,7 +233,10 @@ public class SchematicCommands {
 
         File f = worldEdit.getSafeSaveFile(actor, dir, filename, format.getPrimaryFileExtension());
 
-        boolean overwrite = f.exists();
+        // The OBJ writer also writes a material library next to the model, which must
+        // not replace an existing file either without the overwrite checks
+        boolean overwrite = f.exists() || (SchematicFiles.writesMaterialLibrary(format)
+            && SchematicFiles.withExtension(f, "mtl").exists());
         if (overwrite && !checkOverwrite(actor, allowOverwrite)) {
             return;
         }

@@ -20,8 +20,10 @@
 package com.sk89q.worldedit.command;
 
 import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.command.util.CommandHelper;
 import com.sk89q.worldedit.command.util.CommandPermissions;
 import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.command.util.Logging;
@@ -123,7 +125,7 @@ public class HeightmapCommands {
             + "Importing it on the same selection rebuilds the same heights."
     )
     @CommandPermissions("worldedit.image.heightmap.export")
-    public void exportHeightmap(Actor actor, World world,
+    public void exportHeightmap(Actor actor, World world, LocalSession session,
                                 @Selection Region region,
                                 @Arg(desc = "Image file name, inside the images folder")
                                     String filename,
@@ -132,6 +134,7 @@ public class HeightmapCommands {
         if (!ImageCommands.checkExportSize(actor, region)) {
             return;
         }
+        CommandHelper.checkReadLimit(region, session);
         File file = ImageCommands.resolveSave(worldEdit, actor, filename, overwrite);
         if (file == null) {
             return;

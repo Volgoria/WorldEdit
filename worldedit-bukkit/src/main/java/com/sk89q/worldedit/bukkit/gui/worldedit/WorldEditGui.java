@@ -37,6 +37,7 @@ import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.PluginManager;
 
@@ -185,6 +186,21 @@ public final class WorldEditGui implements Listener {
      * @param command the command, starting with a slash, e.g. {@code //set stone}
      */
     public void run(Player player, String command) {
+        // Typed commands go through this event first; firing it here lets command blockers
+        // (e.g. region flags denying //set) and command loggers see GUI actions too
+        PlayerCommandPreprocessEvent event = new PlayerCommandPreprocessEvent(player, command);
+        plugin.getServer().getPluginManager().callEvent(event);
+        if (event.isCancelled()) {
+            return;
+        }
+        String message = event.getMessage();
+        if (!message.equals(command)) {
+            // Rewritten by another plugin: run it exactly as if it had been typed
+            if (message.startsWith("/") && message.length() > 1) {
+                plugin.getServer().dispatchCommand(player, message.substring(1));
+            }
+            return;
+        }
         WorldEdit.getInstance().getEventBus().post(new CommandEvent(plugin.wrapPlayer(player), command));
     }
 

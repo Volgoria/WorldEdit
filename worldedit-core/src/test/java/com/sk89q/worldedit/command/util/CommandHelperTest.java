@@ -21,10 +21,14 @@ package com.sk89q.worldedit.command.util;
 
 import com.sk89q.worldedit.BaseWorldEditTest;
 import com.sk89q.worldedit.LocalConfiguration;
+import com.sk89q.worldedit.LocalSession;
+import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.MaxRadiusException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.Actor;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.util.formatting.text.Component;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
@@ -39,13 +43,42 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class CommandHelperTest extends BaseWorldEditTest {
+
+    private static LocalSession sessionWithLimit(int limit) {
+        LocalSession session = mock(LocalSession.class);
+        when(session.getBlockChangeLimit()).thenReturn(limit);
+        return session;
+    }
+
+    @Test
+    void readLimitBoundsRegionReadsLikeCopy() {
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(99, 9, 99));
+        assertThrows(MaxChangedBlocksException.class, () -> CommandHelper.checkReadLimit(region, sessionWithLimit(1000)));
+        assertDoesNotThrow(() -> CommandHelper.checkReadLimit(region, sessionWithLimit(1_000_000)));
+        assertDoesNotThrow(() -> CommandHelper.checkReadLimit(region, sessionWithLimit(-1)));
+    }
+
+    @Test
+    void loadingSchematicsNeedsALoadPermission() {
+        Actor actor = mock(Actor.class);
+        assertFalse(CommandHelper.canLoadSchematics(actor));
+        when(actor.hasPermission("worldedit.schematic.load")).thenReturn(true);
+        assertTrue(CommandHelper.canLoadSchematics(actor));
+
+        Actor clipboardLoader = mock(Actor.class);
+        when(clipboardLoader.hasPermission("worldedit.clipboard.load")).thenReturn(true);
+        assertTrue(CommandHelper.canLoadSchematics(clipboardLoader));
+    }
 
     @Test
     void printAffectedPrintsCountAndReturnsIt() {

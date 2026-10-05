@@ -24,6 +24,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -31,6 +32,17 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GuiCommandsTest {
+
+    @Test
+    void browsingNeedsTheListingPermission() {
+        Set<String> granted = Set.of("worldedit.schematic.load", "worldedit.image.paste");
+        // Loading schematics does not reveal the folder's contents, //schem list does
+        assertFalse(GuiCommands.mayBrowse(granted::contains, GuiCommands.SCHEMATIC_BROWSE_PERMISSIONS));
+        assertTrue(GuiCommands.mayBrowse(Set.of("worldedit.schematic.list")::contains,
+            GuiCommands.SCHEMATIC_BROWSE_PERMISSIONS));
+        assertTrue(GuiCommands.mayBrowse(granted::contains, GuiCommands.IMAGE_BROWSE_PERMISSIONS));
+        assertFalse(GuiCommands.mayBrowse(Set.of("worldedit.gui")::contains, GuiCommands.IMAGE_BROWSE_PERMISSIONS));
+    }
 
     @Test
     void brushCommands() {

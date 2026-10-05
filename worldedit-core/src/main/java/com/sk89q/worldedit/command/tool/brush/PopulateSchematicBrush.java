@@ -194,6 +194,8 @@ public class PopulateSchematicBrush implements Brush {
         Operations.completeLegacy(holder.createPaste(extent)
             .to(to)
             .ignoreAirBlocks(ignoreAir)
+            // Schematic entities would be spawned on every click, outside of any block limit
+            .copyEntities(false)
             .build());
     }
 }

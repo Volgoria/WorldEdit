@@ -45,6 +45,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public final class CaveCarver {
 
+    /**
+     * The longest tunnel that can be carved. Every step of a tunnel is kept in
+     * memory, so the length must be bounded before carving.
+     */
+    public static final int MAX_LENGTH = 4096;
+
     private static final double MAX_PITCH = 0.6;
 
     private final double radius;
@@ -60,7 +66,7 @@ public final class CaveCarver {
      */
     public CaveCarver(double radius, int length, long seed) {
         checkArgument(radius >= 0.5, "radius must be at least 0.5");
-        checkArgument(length >= 1, "length must be at least 1");
+        checkArgument(length >= 1 && length <= MAX_LENGTH, "length must be between 1 and " + MAX_LENGTH);
         this.radius = radius;
         this.length = length;
         this.seed = seed;

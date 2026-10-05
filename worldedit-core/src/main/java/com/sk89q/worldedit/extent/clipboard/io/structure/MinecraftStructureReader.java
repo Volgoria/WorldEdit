@@ -60,6 +60,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.OptionalInt;
 import javax.annotation.Nullable;
 
@@ -78,6 +79,18 @@ public class MinecraftStructureReader implements ClipboardReader {
      * The data version vanilla assumes for structures that do not declare one.
      */
     static final int DEFAULT_DATA_VERSION = 500;
+
+    /**
+     * The largest size of a structure along one axis, as for Sponge schematics.
+     */
+    static final int MAX_AXIS_SIZE = 0xFFFF;
+
+    /**
+     * The largest number of positions of a structure. The clipboard is allocated from the
+     * declared size before any block is read, so a tiny file could otherwise request an
+     * allocation of many gigabytes.
+     */
+    static final long MAX_VOLUME = 1L << 26;
 
     private final LinStream rootStream;
     @Nullable
@@ -130,12 +143,18 @@ public class MinecraftStructureReader implements ClipboardReader {
     @Override
     public Clipboard read() throws IOException {
         LinCompoundTag structure = getRoot();
-
-        int[] size = readIntTriple(structure.getListTag("size", LinTagType.intTag()), "size");
-        if (size[0] <= 0 || size[1] <= 0 || size[2] <= 0) {
-            throw new IOException("Structure has an empty or invalid size: "
-                + size[0] + "x" + size[1] + "x" + size[2]);
+        try {
+            return read(structure);
+        } catch (IllegalArgumentException | IllegalStateException | ClassCastException
+                 | IndexOutOfBoundsException | NoSuchElementException e) {
+            // Missing or mistyped tags of a malformed file
+            throw new IOException("Malformed Minecraft structure: " + e.getMessage(), e);
         }
+    }
+
+    private Clipboard read(LinCompoundTag structure) throws IOException {
+        int[] size = readIntTriple(structure.getListTag("size", LinTagType.intTag()), "size");
+        checkSize(size);
 
         FixerContext fixer = createFixer(structure);
 
@@ -146,7 +165,9 @@ public class MinecraftStructureReader implements ClipboardReader {
             origin = readBlockVector(worldEditMeta.findTag("Origin", LinTagType.intArrayTag()));
             offset = readBlockVector(worldEditMeta.findTag("Offset", LinTagType.intArrayTag()));
         }
-        BlockVector3 min = origin.add(offset);
+        BlockVector3 min = checkedAdd(origin, offset);
+        // Reject positions whose maximum would overflow
+        checkedAdd(min, BlockVector3.at(size[0] - 1, size[1] - 1, size[2] - 1));
 
         BlockArrayClipboard clipboard = new BlockArrayClipboard(
             new CuboidRegion(min, min.add(size[0] - 1, size[1] - 1, size[2] - 1))
@@ -339,8 +360,39 @@ public class MinecraftStructureReader implements ClipboardReader {
                 posTag.get(1).valueAsDouble(),
                 posTag.get(2).valueAsDouble()
             ).add(min.toVector3());
+            if (!Double.isFinite(position.x()) || !Double.isFinite(position.y()) || !Double.isFinite(position.z())) {
+                LOGGER.warn("Skipping entity with an invalid position in structure");
+                continue;
+            }
             Location location = new Location(clipboard, position, yaw, pitch);
             clipboard.createEntity(location, new BaseEntity(type, LazyReference.computed(nbt)));
+        }
+    }
+
+    /**
+     * Check the declared size of a structure before anything is allocated from it.
+     *
+     * @param size the size
+     * @throws IOException if the size is empty, negative or too large
+     */
+    static void checkSize(int[] size) throws IOException {
+        String described = size[0] + "x" + size[1] + "x" + size[2];
+        if (size[0] <= 0 || size[1] <= 0 || size[2] <= 0) {
+            throw new IOException("Structure has an empty or invalid size: " + described);
+        }
+        if (size[0] > MAX_AXIS_SIZE || size[1] > MAX_AXIS_SIZE || size[2] > MAX_AXIS_SIZE
+            || (long) size[0] * size[1] * size[2] > MAX_VOLUME) {
+            throw new IOException("Structure is too large: " + described + " (at most " + MAX_VOLUME + " blocks)");
+        }
+    }
+
+    private static BlockVector3 checkedAdd(BlockVector3 a, BlockVector3 b) throws IOException {
+        try {
+            return BlockVector3.at(
+                Math.addExact(a.x(), b.x()), Math.addExact(a.y(), b.y()), Math.addExact(a.z(), b.z())
+            );
+        } catch (ArithmeticException _) {
+            throw new IOException("Structure position is out of range");
         }
     }
 

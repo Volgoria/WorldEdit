@@ -23,6 +23,7 @@ import com.google.common.base.Splitter;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 
@@ -56,11 +57,37 @@ public final class GuiCommands {
      */
     public static final List<Integer> ROTATIONS = List.of(90, 180, 270);
 
+    /**
+     * The permissions of which one is needed to browse the schematics folder, the same
+     * as {@code //schem list}.
+     */
+    public static final List<String> SCHEMATIC_BROWSE_PERMISSIONS = List.of("worldedit.schematic.list");
+
+    /**
+     * The permissions of which one is needed to browse the images folder: those of the
+     * commands working with images.
+     */
+    public static final List<String> IMAGE_BROWSE_PERMISSIONS = List.of(
+        "worldedit.image.paste", "worldedit.image.export",
+        "worldedit.image.heightmap.import", "worldedit.image.heightmap.export"
+    );
+
     private static final Pattern SCHEMATIC_NAME = Pattern.compile("[A-Za-z0-9_\\-]+(/[A-Za-z0-9_\\-]+)*");
     private static final Pattern FILE_REFERENCE =
         Pattern.compile("[A-Za-z0-9_\\-]+(/[A-Za-z0-9_\\-]+)*(\\.[A-Za-z0-9]{1,10})?");
 
     private GuiCommands() {
+    }
+
+    /**
+     * Check whether a player may browse a folder.
+     *
+     * @param hasPermission checks a permission of the player
+     * @param permissions the permissions of which one is needed
+     * @return true if the player has one of the permissions
+     */
+    public static boolean mayBrowse(Predicate<String> hasPermission, List<String> permissions) {
+        return permissions.stream().anyMatch(hasPermission);
     }
 
     // ---- Templated actions ---------------------------------------------------------------------

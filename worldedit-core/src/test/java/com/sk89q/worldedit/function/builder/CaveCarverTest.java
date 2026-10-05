@@ -111,4 +111,13 @@ class CaveCarverTest extends BuildTestBase {
         assertThrows(IllegalArgumentException.class, () -> new CaveCarver(2, 0, 0));
     }
 
+    @Test
+    @DisplayName("refuses tunnels too long to keep in memory")
+    void lengthIsBounded() {
+        // Every step is kept in memory: an unbounded length would exhaust the heap
+        new CaveCarver(2, CaveCarver.MAX_LENGTH, 0);
+        assertThrows(IllegalArgumentException.class, () -> new CaveCarver(2, CaveCarver.MAX_LENGTH + 1, 0));
+        assertThrows(IllegalArgumentException.class, () -> new CaveCarver(2, Integer.MAX_VALUE, 0));
+    }
+
 }
