@@ -34,6 +34,7 @@ import com.sk89q.worldedit.world.biome.BiomeType;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -64,7 +65,8 @@ public class BiomeMaskParser extends PrefixParser<Mask> {
     protected Mask parseRemainder(String prefix, String remainder, ParserContext context) throws InputParseException {
         Set<BiomeType> biomes = new HashSet<>();
         for (String biomeName : Splitter.on(",").split(remainder)) {
-            BiomeType biome = BiomeType.REGISTRY.get(biomeName);
+            // Registry keys are lower case, and the registry rejects other keys
+            BiomeType biome = BiomeType.REGISTRY.get(biomeName.toLowerCase(Locale.ROOT));
             if (biome == null) {
                 throw new NoMatchException(TranslatableComponent.of("worldedit.error.unknown-biome", TextComponent.of(biomeName)));
             }

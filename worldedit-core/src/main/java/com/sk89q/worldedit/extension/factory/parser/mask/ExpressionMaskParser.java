@@ -47,6 +47,11 @@ public class ExpressionMaskParser extends PrefixParser<Mask> {
 
     @Override
     protected Mask parseRemainder(String prefix, String remainder, ParserContext context) throws InputParseException {
+        if (remainder.isBlank()) {
+            // Expression.compile rejects empty expressions with an IllegalArgumentException
+            throw new InputParseException(TranslatableComponent.of(
+                "worldedit.error.parser.invalid-expression", TextComponent.of(remainder)));
+        }
         try {
             Expression exp = Expression.compile(remainder, "x", "y", "z");
             WorldEditExpressionEnvironment env = new WorldEditExpressionEnvironment(
