@@ -71,6 +71,9 @@ Certains boutons demandent une valeur (nom de fichier, texte, nombre, pattern) :
 2. Tapez la réponse dans le chat : le message n'est **pas** diffusé aux autres joueurs.
 3. Tapez **`cancel`** pour annuler et revenir au menu.
 4. Sans réponse au bout de **60 secondes**, la question est annulée et le menu se rouvre.
+   Une réponse tapée dans les **30 secondes** qui suivent l'expiration n'est pas diffusée dans le
+   chat public : elle est absorbée et un message indique que la question avait expiré.
+5. La question est abandonnée si vous vous déconnectez ou changez de monde.
 
 Les réponses sont validées avant d'être transformées en commande ; une réponse invalide affiche une
 erreur et rouvre le menu :

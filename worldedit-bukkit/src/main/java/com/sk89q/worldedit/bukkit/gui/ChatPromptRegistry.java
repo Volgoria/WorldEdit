@@ -47,13 +47,27 @@ public final class ChatPromptRegistry {
     public static final String CANCEL_WORD = "cancel";
 
     /**
+     * How long after a prompt timed out a reply is still recognised as a late
+     * answer, and kept out of public chat, by default.
+     */
+    public static final Duration DEFAULT_LATE_REPLY_GRACE = Duration.ofSeconds(30);
+
+    /**
      * What happened to a chat message offered to the registry.
      */
     public enum Outcome {
         /** No prompt was pending; the message is ordinary chat. */
         NOT_PROMPTED,
-        /** A prompt was pending but had expired; it has been discarded. */
+        /**
+         * A prompt was pending but its time was up before its timer fired; it
+         * has been discarded and should be cancelled now.
+         */
         EXPIRED,
+        /**
+         * The prompt had already timed out shortly before; the message is a
+         * late answer and is not passed on to chat.
+         */
+        LATE,
         /** The player cancelled the prompt. */
         CANCELLED,
         /** The message answers the prompt. */
@@ -65,6 +79,7 @@ public final class ChatPromptRegistry {
      *
      * @param outcome the outcome
      * @param prompt the prompt concerned, null for {@link Outcome#NOT_PROMPTED}
+     *     and {@link Outcome#LATE}
      * @param input the trimmed message
      */
     public record Result(Outcome outcome, @Nullable Prompt prompt, String input) {
@@ -75,7 +90,7 @@ public final class ChatPromptRegistry {
          * @return true if the message was meant for a prompt
          */
         public boolean consumesMessage() {
-            return outcome == Outcome.CANCELLED || outcome == Outcome.ACCEPTED;
+            return outcome != Outcome.NOT_PROMPTED;
         }
     }
 
@@ -91,8 +106,11 @@ public final class ChatPromptRegistry {
     }
 
     private final Map<UUID, Prompt> pending = new ConcurrentHashMap<>();
+    // Player -> clock millis until which a reply counts as a late answer
+    private final Map<UUID, Long> recentlyExpired = new ConcurrentHashMap<>();
     private final AtomicLong nextId = new AtomicLong();
     private final LongSupplier clock;
+    private final long lateReplyGraceMillis;
 
     /**
      * Create a registry using the system clock.
@@ -107,7 +125,19 @@ public final class ChatPromptRegistry {
      * @param clock supplies the current time in millis
      */
     public ChatPromptRegistry(LongSupplier clock) {
+        this(clock, DEFAULT_LATE_REPLY_GRACE);
+    }
+
+    /**
+     * Create a registry with a custom clock and late reply grace period.
+     *
+     * @param clock supplies the current time in millis
+     * @param lateReplyGrace how long after a timeout a reply is still swallowed
+     */
+    public ChatPromptRegistry(LongSupplier clock, Duration lateReplyGrace) {
+        checkArgument(!lateReplyGrace.isNegative(), "grace must not be negative");
         this.clock = checkNotNull(clock);
+        this.lateReplyGraceMillis = lateReplyGrace.toMillis();
     }
 
     /**
@@ -124,6 +154,7 @@ public final class ChatPromptRegistry {
         checkArgument(!timeout.isNegative() && !timeout.isZero(), "timeout must be positive");
         Prompt prompt = new Prompt(nextId.incrementAndGet(), clock.getAsLong() + timeout.toMillis(),
             checkNotNull(onInput), checkNotNull(onCancel));
+        recentlyExpired.remove(player);
         pending.put(player, prompt);
         return prompt;
     }
@@ -139,6 +170,10 @@ public final class ChatPromptRegistry {
         String input = message.trim();
         Prompt prompt = pending.remove(player);
         if (prompt == null) {
+            Long lateUntil = recentlyExpired.remove(player);
+            if (lateUntil != null && clock.getAsLong() <= lateUntil) {
+                return new Result(Outcome.LATE, null, input);
+            }
             return new Result(Outcome.NOT_PROMPTED, null, input);
         }
         if (clock.getAsLong() > prompt.expiresAt()) {
@@ -153,6 +188,9 @@ public final class ChatPromptRegistry {
     /**
      * Expire a specific prompt if it is still the one pending for the player.
      *
+     * <p>The next reply within the grace period is then reported as
+     * {@link Outcome#LATE} instead of being let through to chat.</p>
+     *
      * @param player the player
      * @param promptId the prompt id
      * @return the removed prompt, or null if it was already answered or replaced
@@ -160,19 +198,31 @@ public final class ChatPromptRegistry {
     @Nullable
     public Prompt expire(UUID player, long promptId) {
         Prompt current = pending.get(player);
-        if (current != null && current.id() == promptId && pending.remove(player, current)) {
+        if (current == null || current.id() != promptId) {
+            return null;
+        }
+        // Record the grace period first, so a reply racing with the timeout
+        // is never let through to chat
+        Long lateUntil = clock.getAsLong() + lateReplyGraceMillis;
+        if (lateReplyGraceMillis > 0) {
+            recentlyExpired.put(player, lateUntil);
+        }
+        if (pending.remove(player, current)) {
             return current;
         }
+        recentlyExpired.remove(player, lateUntil);
         return null;
     }
 
     /**
-     * Drop any prompt pending for the player without notifying it.
+     * Drop any prompt pending for the player without notifying it, and forget
+     * any prompt that recently timed out.
      *
      * @param player the player
      * @return true if a prompt was pending
      */
     public boolean discard(UUID player) {
+        recentlyExpired.remove(player);
         return pending.remove(player) != null;
     }
 
@@ -191,5 +241,6 @@ public final class ChatPromptRegistry {
      */
     public void clear() {
         pending.clear();
+        recentlyExpired.clear();
     }
 }

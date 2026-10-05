@@ -24,6 +24,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.time.Duration;
@@ -32,8 +33,15 @@ import java.util.function.Consumer;
 /**
  * Asks players to type a value in chat, e.g. a schematic name or a search
  * query, with a timeout and a {@code cancel} keyword.
+ *
+ * <p>A reply typed shortly after the prompt timed out is swallowed rather than
+ * sent to public chat. Prompts are dropped when the player quits or changes
+ * world.</p>
  */
 public final class ChatPrompts implements Listener {
+
+    private static final String EXPIRED_MESSAGE =
+        "That prompt had already timed out; your message was not sent to chat.";
 
     private final ChatPromptRegistry registry;
     private final GuiScheduler scheduler;
@@ -93,21 +101,23 @@ public final class ChatPrompts implements Listener {
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         ChatPromptRegistry.Result result = registry.handle(player.getUniqueId(), event.getMessage());
-        ChatPromptRegistry.Prompt prompt = result.prompt();
-        if (prompt == null) {
-            return;
-        }
         if (result.consumesMessage()) {
+            // Answers, including late ones, are never broadcast to other players
             event.setCancelled(true);
         }
+        ChatPromptRegistry.Prompt prompt = result.prompt();
         switch (result.outcome()) {
             case ACCEPTED -> scheduler.run(player, () -> prompt.onInput().accept(result.input()));
             case CANCELLED -> scheduler.run(player, () -> {
                 player.sendMessage(Text.PREFIX + "Cancelled.");
                 prompt.onCancel().run();
             });
-            case EXPIRED -> scheduler.run(player, () ->
-                player.sendMessage(Text.PREFIX + Text.RED + "That prompt had already timed out."));
+            case EXPIRED -> scheduler.run(player, () -> {
+                player.sendMessage(Text.PREFIX + Text.RED + EXPIRED_MESSAGE);
+                prompt.onCancel().run();
+            });
+            case LATE -> scheduler.run(player, () ->
+                player.sendMessage(Text.PREFIX + Text.RED + EXPIRED_MESSAGE));
             default -> {
             }
         }
@@ -116,6 +126,14 @@ public final class ChatPrompts implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         registry.discard(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
+    public void onChangedWorld(PlayerChangedWorldEvent event) {
+        Player player = event.getPlayer();
+        if (registry.discard(player.getUniqueId())) {
+            player.sendMessage(Text.PREFIX + Text.RED + "You changed world, prompt cancelled.");
+        }
     }
 
     /**

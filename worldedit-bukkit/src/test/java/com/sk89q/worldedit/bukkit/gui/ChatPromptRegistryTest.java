@@ -89,13 +89,63 @@ class ChatPromptRegistryTest {
     }
 
     @Test
-    void lateAnswerIsExpiredAndNotConsumed() {
-        begin();
+    void answerAfterDeadlineBeforeTimerIsExpiredAndConsumed() {
+        ChatPromptRegistry.Prompt prompt = begin();
         now.addAndGet(60_001);
         ChatPromptRegistry.Result result = registry.handle(player, "too late");
         assertEquals(ChatPromptRegistry.Outcome.EXPIRED, result.outcome());
-        assertFalse(result.consumesMessage());
+        assertSame(prompt, result.prompt());
+        assertTrue(result.consumesMessage());
         assertFalse(registry.isPending(player));
+    }
+
+    @Test
+    void replyShortlyAfterTimeoutIsSwallowedOnce() {
+        ChatPromptRegistry.Prompt prompt = begin();
+        now.addAndGet(60_000);
+        assertNotNull(registry.expire(player, prompt.id()));
+
+        now.addAndGet(29_000);
+        ChatPromptRegistry.Result late = registry.handle(player, "my_house");
+        assertEquals(ChatPromptRegistry.Outcome.LATE, late.outcome());
+        assertNull(late.prompt());
+        assertTrue(late.consumesMessage());
+
+        // Only the first late reply is swallowed; normal chat resumes after it
+        ChatPromptRegistry.Result next = registry.handle(player, "hello");
+        assertEquals(ChatPromptRegistry.Outcome.NOT_PROMPTED, next.outcome());
+        assertFalse(next.consumesMessage());
+    }
+
+    @Test
+    void replyAfterGracePeriodIsOrdinaryChat() {
+        ChatPromptRegistry.Prompt prompt = begin();
+        assertNotNull(registry.expire(player, prompt.id()));
+        now.addAndGet(30_001);
+        assertEquals(ChatPromptRegistry.Outcome.NOT_PROMPTED, registry.handle(player, "hello").outcome());
+    }
+
+    @Test
+    void gracePeriodIsForgottenOnDiscardOrNewPrompt() {
+        ChatPromptRegistry.Prompt prompt = begin();
+        assertNotNull(registry.expire(player, prompt.id()));
+        assertFalse(registry.discard(player));
+        assertEquals(ChatPromptRegistry.Outcome.NOT_PROMPTED, registry.handle(player, "hello").outcome());
+
+        prompt = begin();
+        assertNotNull(registry.expire(player, prompt.id()));
+        begin();
+        assertEquals(ChatPromptRegistry.Outcome.ACCEPTED, registry.handle(player, "answer").outcome());
+        assertEquals(ChatPromptRegistry.Outcome.NOT_PROMPTED, registry.handle(player, "hello").outcome());
+    }
+
+    @Test
+    void zeroGraceLetsLateRepliesThrough() {
+        ChatPromptRegistry noGrace = new ChatPromptRegistry(now::get, Duration.ZERO);
+        ChatPromptRegistry.Prompt prompt = noGrace.begin(player, Duration.ofSeconds(60), answers::add,
+            cancels::incrementAndGet);
+        assertNotNull(noGrace.expire(player, prompt.id()));
+        assertEquals(ChatPromptRegistry.Outcome.NOT_PROMPTED, noGrace.handle(player, "hello").outcome());
     }
 
     @Test
