@@ -30,6 +30,8 @@ import com.sk89q.worldedit.util.formatting.text.Component;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.util.formatting.text.format.TextColor;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -56,7 +58,15 @@ public abstract class BreadthFirstSearch implements Operation {
 
     private final RegionFunction function;
     private final Queue<BlockVector3> queue = new ArrayDeque<>();
-    private final Set<BlockVector3> visited = new HashSet<>();
+    /**
+     * Visited positions, packed into longs. This avoids keeping a
+     * {@link BlockVector3} object (plus a hash map node) per visited block.
+     */
+    private final LongSet visited = new LongOpenHashSet();
+    /**
+     * Visited positions that are outside the long-packable range. Rarely used.
+     */
+    private final Set<BlockVector3> visitedUnpackable = new HashSet<>();
     private final List<BlockVector3> directions = new ArrayList<>();
     private int affected = 0;
 
@@ -125,10 +135,22 @@ public abstract class BreadthFirstSearch implements Operation {
      * @param position the position
      */
     public void visit(BlockVector3 position) {
-        if (!visited.contains(position)) {
+        if (markVisited(position)) {
             queue.add(position);
-            visited.add(position);
         }
+    }
+
+    /**
+     * Mark the given position as visited.
+     *
+     * @param position the position
+     * @return true if the position had not been visited before
+     */
+    private boolean markVisited(BlockVector3 position) {
+        if (BlockVector3.isLongPackable(position)) {
+            return visited.add(position.toLongPackedForm());
+        }
+        return visitedUnpackable.add(position);
     }
 
     /**
@@ -138,11 +160,8 @@ public abstract class BreadthFirstSearch implements Operation {
      * @param to the block under question
      */
     private void visit(BlockVector3 from, BlockVector3 to) {
-        if (!visited.contains(to)) {
-            visited.add(to);
-            if (isVisitable(from, to)) {
-                queue.add(to);
-            }
+        if (markVisited(to) && isVisitable(from, to)) {
+            queue.add(to);
         }
     }
 
