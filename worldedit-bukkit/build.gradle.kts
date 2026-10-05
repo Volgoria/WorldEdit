@@ -69,11 +69,14 @@ dependencies {
     "implementation"(libs.bstats.bukkit)
     "implementation"(libs.fastutil)
 
-    project.project(":worldedit-bukkit:adapters").subprojects.forEach {
+    // The set of adapter subprojects can be restricted with -PbukkitAdapters (see settings.gradle.kts)
+    val adapterProjects = project.project(":worldedit-bukkit:adapters").subprojects
+    adapterProjects.forEach {
         "adaptersScope"(project(it.path))
     }
-    listOf("1.21.4", "1.21.5", "1.21.6", "1.21.9", "1.21.11").forEach {
-        "adaptersReobfScope"(project(":worldedit-bukkit:adapters:adapter-$it"))
+    val reobfAdapterNames = listOf("1.21.4", "1.21.5", "1.21.6", "1.21.9", "1.21.11").map { "adapter-$it" }
+    adapterProjects.filter { it.name in reobfAdapterNames }.forEach {
+        "adaptersReobfScope"(project(it.path))
     }
 }
 

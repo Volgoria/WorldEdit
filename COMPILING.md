@@ -38,6 +38,26 @@ If you want to use WorldEdit, use the `-dist` version.
 
 (The -dist version includes WorldEdit + necessary libraries.)
 
+## Building only some Bukkit adapters
+
+By default `worldedit-bukkit` builds and bundles an adapter for every supported Minecraft version, which means
+downloading and setting up a Paper dev bundle for each of them. If you only run one server version, you can restrict
+the adapters with the `bukkitAdapters` Gradle property (comma-separated list of versions):
+
+    ./gradlew :worldedit-bukkit:build -PbukkitAdapters=26.3
+
+or permanently, in `gradle.properties` (project or `~/.gradle/gradle.properties`):
+
+    bukkitAdapters=26.3,26.2
+
+Valid versions are the directory names under `worldedit-bukkit/adapters` without the `adapter-` prefix
+(e.g. `1.21.11`, `26.3`). Leaving the property unset (or setting it to `all`) builds every adapter.
+An unknown version fails the build with the list of known versions. Note that the resulting jar only works
+with the Minecraft versions you selected; on any other version WorldEdit will run without an adapter
+(with reduced functionality). Do not distribute jars built this way as general-purpose builds.
+
+Gradle's `--parallel` and `--build-cache` flags can also speed up repeated local builds.
+
 ## Other commands
 
 * `gradlew idea` will generate an [IntelliJ IDEA](http://www.jetbrains.com/idea/) module for each folder.
