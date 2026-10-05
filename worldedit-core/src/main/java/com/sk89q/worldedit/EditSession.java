@@ -45,36 +45,17 @@ import com.sk89q.worldedit.extent.world.ChunkLoadingExtent;
 import com.sk89q.worldedit.extent.world.SideEffectExtent;
 import com.sk89q.worldedit.extent.world.SurvivalModeExtent;
 import com.sk89q.worldedit.extent.world.WatchdogTickingExtent;
-import com.sk89q.worldedit.function.GroundFunction;
 import com.sk89q.worldedit.function.RegionMaskingFilter;
 import com.sk89q.worldedit.function.block.BlockDistributionCounter;
-import com.sk89q.worldedit.function.block.BlockReplace;
 import com.sk89q.worldedit.function.block.Counter;
-import com.sk89q.worldedit.function.block.Naturalizer;
-import com.sk89q.worldedit.function.block.SnowSimulator;
-import com.sk89q.worldedit.function.generator.ForestGenerator;
-import com.sk89q.worldedit.function.generator.GardenPatchGenerator;
 import com.sk89q.worldedit.function.mask.BlockMask;
-import com.sk89q.worldedit.function.mask.BlockStateMask;
-import com.sk89q.worldedit.function.mask.BlockTypeMask;
-import com.sk89q.worldedit.function.mask.BoundedHeightMask;
 import com.sk89q.worldedit.function.mask.ExistingBlockMask;
 import com.sk89q.worldedit.function.mask.Mask;
-import com.sk89q.worldedit.function.mask.MaskIntersection;
-import com.sk89q.worldedit.function.mask.MaskUnion;
 import com.sk89q.worldedit.function.mask.Masks;
-import com.sk89q.worldedit.function.mask.NoiseFilter2D;
-import com.sk89q.worldedit.function.mask.RegionMask;
 import com.sk89q.worldedit.function.operation.ChangeSetExecutor;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.function.pattern.WaterloggedRemover;
-import com.sk89q.worldedit.function.util.RegionOffset;
-import com.sk89q.worldedit.function.visitor.DownwardVisitor;
-import com.sk89q.worldedit.function.visitor.LayerVisitor;
-import com.sk89q.worldedit.function.visitor.NonRisingVisitor;
-import com.sk89q.worldedit.function.visitor.RecursiveVisitor;
 import com.sk89q.worldedit.function.visitor.RegionVisitor;
 import com.sk89q.worldedit.history.UndoContext;
 import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
@@ -84,22 +65,20 @@ import com.sk89q.worldedit.internal.edit.LineGenerator;
 import com.sk89q.worldedit.internal.edit.RegionCopyOperations;
 import com.sk89q.worldedit.internal.edit.RegionOperations;
 import com.sk89q.worldedit.internal.edit.ShapeGenerator;
+import com.sk89q.worldedit.internal.edit.TerrainOperations;
 import com.sk89q.worldedit.internal.expression.Expression;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
 import com.sk89q.worldedit.internal.util.BlockVector3Set;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.Vector2;
 import com.sk89q.worldedit.math.Vector3;
-import com.sk89q.worldedit.math.noise.RandomNoise;
 import com.sk89q.worldedit.math.transform.ScaleAndTranslateTransform;
 import com.sk89q.worldedit.math.transform.Transform;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.CylinderRegion;
-import com.sk89q.worldedit.regions.EllipsoidRegion;
 import com.sk89q.worldedit.regions.FlatRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionOperationException;
-import com.sk89q.worldedit.regions.Regions;
 import com.sk89q.worldedit.util.Countable;
 import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.util.SideEffectSet;
@@ -115,7 +94,6 @@ import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockType;
-import com.sk89q.worldedit.world.block.BlockTypes;
 import com.sk89q.worldedit.world.generation.TreeType;
 
 import java.util.ArrayDeque;
@@ -132,9 +110,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.sk89q.worldedit.internal.util.SwitchEnhancements.dummyValue;
 import static com.sk89q.worldedit.internal.util.SwitchEnhancements.exhaustive;
-import static com.sk89q.worldedit.regions.Regions.asFlatRegion;
-import static com.sk89q.worldedit.regions.Regions.maximumBlockY;
-import static com.sk89q.worldedit.regions.Regions.minimumBlockY;
 
 /**
  * An {@link Extent} that handles history, {@link BlockBag}s, change limits,
@@ -1043,43 +1018,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int fillXZ(BlockVector3 origin, Pattern pattern, double radius, int depth, boolean recursive) throws MaxChangedBlocksException {
-        checkNotNull(origin);
-        checkNotNull(pattern);
-        checkArgument(radius >= 0, "radius >= 0");
-        checkArgument(depth >= 1, "depth >= 1");
-
-        // Avoid int overflow (negative coordinate space allows for overflow back round to positive if the depth is large enough).
-        // Depth is always 1 or greater, thus the lower bound should always be <= origin y.
-        int lowerBound = origin.y() - depth + 1;
-        if (lowerBound > origin.y()) {
-            lowerBound = Integer.MIN_VALUE;
-        }
-
-        MaskIntersection mask = new MaskIntersection(
-                new RegionMask(new EllipsoidRegion(null, origin, Vector3.at(radius, radius, radius))),
-                new BoundedHeightMask(
-                        Math.max(lowerBound, getWorld().getMinY()),
-                        Math.min(getWorld().getMaxY(), origin.y())),
-                Masks.negate(new ExistingBlockMask(this)));
-
-        // Want to replace blocks
-        BlockReplace replace = new BlockReplace(this, pattern);
-
-        // Pick how we're going to visit blocks
-        RecursiveVisitor visitor;
-        if (recursive) {
-            visitor = new RecursiveVisitor(mask, replace);
-        } else {
-            visitor = new DownwardVisitor(mask, replace, origin.y());
-        }
-
-        // Start at the origin
-        visitor.visit(origin);
-
-        // Execute
-        Operations.completeLegacy(visitor);
-
-        return visitor.getAffected();
+        return TerrainOperations.fillXZ(this, origin, pattern, radius, depth, recursive);
     }
 
     /**
@@ -1314,15 +1253,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int overlayCuboidBlocks(Region region, Pattern pattern) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(pattern);
-
-        BlockReplace replace = new BlockReplace(this, pattern);
-        RegionOffset offset = new RegionOffset(BlockVector3.UNIT_Y, replace);
-        GroundFunction ground = new GroundFunction(new ExistingBlockMask(this), offset);
-        LayerVisitor visitor = new LayerVisitor(asFlatRegion(region), minimumBlockY(region), maximumBlockY(region), ground);
-        Operations.completeLegacy(visitor);
-        return ground.getAffected();
+        return TerrainOperations.overlayCuboidBlocks(this, region, pattern);
     }
 
     /**
@@ -1334,13 +1265,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int naturalizeCuboidBlocks(Region region) throws MaxChangedBlocksException {
-        checkNotNull(region);
-
-        Naturalizer naturalizer = new Naturalizer(this);
-        FlatRegion flatRegion = Regions.asFlatRegion(region);
-        LayerVisitor visitor = new LayerVisitor(flatRegion, minimumBlockY(region), maximumBlockY(region), naturalizer);
-        Operations.completeLegacy(visitor);
-        return naturalizer.getAffected();
+        return TerrainOperations.naturalizeCuboidBlocks(this, region);
     }
 
     /**
@@ -1464,39 +1389,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int drainArea(BlockVector3 origin, double radius, boolean waterlogged) throws MaxChangedBlocksException {
-        checkNotNull(origin);
-        checkArgument(radius >= 0, "radius >= 0 required");
-
-        Mask waterloggedMask = null;
-        if (waterlogged) {
-            Map<String, String> stateMap = new HashMap<>();
-            stateMap.put("waterlogged", "true");
-            waterloggedMask = new BlockStateMask(this, stateMap, true);
-        }
-        MaskIntersection mask = new MaskIntersection(
-                new BoundedHeightMask(getWorld().getMinY(), getWorld().getMaxY()),
-                new RegionMask(new EllipsoidRegion(null, origin, Vector3.at(radius, radius, radius))),
-                waterlogged ? new MaskUnion(getWorld().createLiquidMask(), waterloggedMask)
-                            : getWorld().createLiquidMask());
-
-        BlockReplace replace;
-        if (waterlogged) {
-            replace = new BlockReplace(this, new WaterloggedRemover(this));
-        } else {
-            replace = new BlockReplace(this, BlockTypes.AIR.getDefaultState());
-        }
-        RecursiveVisitor visitor = new RecursiveVisitor(mask, replace);
-
-        // Around the origin in a 3x3 block
-        for (BlockVector3 position : CuboidRegion.fromCenter(origin, 1)) {
-            if (mask.test(position)) {
-                visitor.visit(position);
-            }
-        }
-
-        Operations.completeLegacy(visitor);
-
-        return visitor.getAffected();
+        return TerrainOperations.drainArea(this, origin, radius, waterlogged);
     }
 
     /**
@@ -1509,35 +1402,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int fixLiquid(BlockVector3 origin, double radius, BlockType fluid) throws MaxChangedBlocksException {
-        checkNotNull(origin);
-        checkArgument(radius >= 0, "radius >= 0 required");
-
-        // Our origins can only be liquids
-        Mask liquidMask = new BlockTypeMask(this, fluid);
-
-        // But we will also visit air blocks
-        MaskIntersection blockMask = new MaskUnion(liquidMask, Masks.negate(new ExistingBlockMask(this)));
-
-        // There are boundaries that the routine needs to stay in
-        MaskIntersection mask = new MaskIntersection(
-                new BoundedHeightMask(getWorld().getMinY(), Math.min(origin.y(), getWorld().getMaxY())),
-                new RegionMask(new EllipsoidRegion(null, origin, Vector3.at(radius, radius, radius))),
-                blockMask
-        );
-
-        BlockReplace replace = new BlockReplace(this, fluid.getDefaultState());
-        NonRisingVisitor visitor = new NonRisingVisitor(mask, replace);
-
-        // Around the origin in a 3x3 block
-        for (BlockVector3 position : CuboidRegion.fromCenter(origin, 1)) {
-            if (liquidMask.test(position)) {
-                visitor.visit(position);
-            }
-        }
-
-        Operations.completeLegacy(visitor);
-
-        return visitor.getAffected();
+        return TerrainOperations.fixLiquid(this, origin, radius, fluid);
     }
 
     /**
@@ -1664,49 +1529,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int thaw(BlockVector3 position, double radius, int height)
         throws MaxChangedBlocksException {
-        int affected = 0;
-        double radiusSq = radius * radius;
-
-        int ox = position.x();
-        int oy = position.y();
-        int oz = position.z();
-
-        BlockState air = BlockTypes.AIR.getDefaultState();
-        BlockState water = BlockTypes.WATER.getDefaultState();
-
-        int centerY = Math.max(getWorld().getMinY(), Math.min(getWorld().getMaxY(), oy));
-        int minY = Math.max(getWorld().getMinY(), centerY - height);
-        int maxY = Math.min(getWorld().getMaxY(), centerY + height);
-
-        int ceilRadius = (int) Math.ceil(radius);
-        for (int x = ox - ceilRadius; x <= ox + ceilRadius; ++x) {
-            for (int z = oz - ceilRadius; z <= oz + ceilRadius; ++z) {
-                if (BlockVector3.at(x, oy, z).distanceSq(position) > radiusSq) {
-                    continue;
-                }
-
-                for (int y = maxY; y > minY; --y) {
-                    BlockVector3 pt = BlockVector3.at(x, y, z);
-                    BlockType id = getBlock(pt).getBlockType();
-
-                    if (id == BlockTypes.ICE) {
-                        if (setBlock(pt, water)) {
-                            ++affected;
-                        }
-                    } else if (id == BlockTypes.SNOW) {
-                        if (setBlock(pt, air)) {
-                            ++affected;
-                        }
-                    } else if (id.getMaterial().isAir()) {
-                        continue;
-                    }
-
-                    break;
-                }
-            }
-        }
-
-        return affected;
+        return TerrainOperations.thaw(this, position, radius, height);
     }
 
     /**
@@ -1754,12 +1577,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int simulateSnow(FlatRegion region, boolean stack)
             throws MaxChangedBlocksException {
-        checkNotNull(region);
-
-        SnowSimulator snowSimulator = new SnowSimulator(this, stack);
-        LayerVisitor layerVisitor = new LayerVisitor(region, region.getMinimumY(), region.getMaximumY(), snowSimulator);
-        Operations.completeLegacy(layerVisitor);
-        return snowSimulator.getAffected();
+        return TerrainOperations.simulateSnow(this, region, stack);
     }
 
     /**
@@ -1795,46 +1613,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int green(BlockVector3 position, double radius, int height, boolean onlyNormalDirt)
         throws MaxChangedBlocksException {
-        int affected = 0;
-        final double radiusSq = radius * radius;
-
-        final int ox = position.x();
-        final int oy = position.y();
-        final int oz = position.z();
-
-        final BlockState grass = BlockTypes.GRASS_BLOCK.getDefaultState();
-
-        final int centerY = Math.max(getWorld().getMinY(), Math.min(getWorld().getMaxY(), oy));
-        final int minY = Math.max(getWorld().getMinY(), centerY - height);
-        final int maxY = Math.min(getWorld().getMaxY(), centerY + height);
-
-        final int ceilRadius = (int) Math.ceil(radius);
-        for (int x = ox - ceilRadius; x <= ox + ceilRadius; ++x) {
-            for (int z = oz - ceilRadius; z <= oz + ceilRadius; ++z) {
-                if (BlockVector3.at(x, oy, z).distanceSq(position) > radiusSq) {
-                    continue;
-                }
-
-                for (int y = maxY; y > minY; --y) {
-                    final BlockVector3 pt = BlockVector3.at(x, y, z);
-                    final BlockState block = getBlock(pt);
-
-                    if (block.getBlockType() == BlockTypes.DIRT
-                        || (!onlyNormalDirt && block.getBlockType() == BlockTypes.COARSE_DIRT)) {
-                        if (setBlock(pt, grass)) {
-                            ++affected;
-                        }
-                        break;
-                    } else if (block.getBlockType() == BlockTypes.WATER || block.getBlockType() == BlockTypes.LAVA) {
-                        break;
-                    } else if (block.getBlockType().getMaterial().isSolid()) {
-                        break;
-                    }
-                }
-            }
-        }
-
-        return affected;
+        return TerrainOperations.green(this, position, radius, height, onlyNormalDirt);
     }
 
     /**
@@ -1846,22 +1625,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makePumpkinPatches(BlockVector3 position, int apothem) throws MaxChangedBlocksException {
-        // We want to generate pumpkins
-        GardenPatchGenerator generator = new GardenPatchGenerator(this);
-        generator.setPlant(GardenPatchGenerator.getPumpkinPattern());
-
-        // In a region of the given radius
-        FlatRegion region = new CuboidRegion(
-                getWorld(), // Causes clamping of Y range
-                position.add(-apothem, -5, -apothem),
-                position.add(apothem, 10, apothem));
-        double density = 0.02;
-
-        GroundFunction ground = new GroundFunction(new ExistingBlockMask(this), generator);
-        LayerVisitor visitor = new LayerVisitor(region, minimumBlockY(region), maximumBlockY(region), ground);
-        visitor.setMask(new NoiseFilter2D(new RandomNoise(), density));
-        Operations.completeLegacy(visitor);
-        return ground.getAffected();
+        return TerrainOperations.makePumpkinPatches(this, position, apothem);
     }
 
     /**
@@ -1891,13 +1655,9 @@ public class EditSession implements Extent, AutoCloseable {
      * @deprecated Use {@link #makeForest(Region, double, TreeType)}.
      */
     @Deprecated
+    @SuppressWarnings("InlineMeSuggester") // inlining would expose the internal implementation
     public int makeForest(Region region, double density, TreeGenerator.TreeType treeType) throws MaxChangedBlocksException {
-        ForestGenerator generator = new ForestGenerator(this, treeType);
-        GroundFunction ground = new GroundFunction(new ExistingBlockMask(this), generator);
-        LayerVisitor visitor = new LayerVisitor(asFlatRegion(region), minimumBlockY(region), maximumBlockY(region), ground);
-        visitor.setMask(new NoiseFilter2D(new RandomNoise(), density));
-        Operations.completeLegacy(visitor);
-        return ground.getAffected();
+        return TerrainOperations.makeForest(this, region, density, treeType);
     }
 
     /**
@@ -1924,12 +1684,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makeForest(Region region, double density, TreeType treeType) throws MaxChangedBlocksException {
-        com.sk89q.worldedit.function.generator.TreeGenerator generator = new com.sk89q.worldedit.function.generator.TreeGenerator(this, treeType);
-        GroundFunction ground = new GroundFunction(new ExistingBlockMask(this), generator);
-        LayerVisitor visitor = new LayerVisitor(asFlatRegion(region), minimumBlockY(region), maximumBlockY(region), ground);
-        visitor.setMask(new NoiseFilter2D(new RandomNoise(), density));
-        Operations.completeLegacy(visitor);
-        return ground.getAffected();
+        return TerrainOperations.makeForest(this, region, density, treeType);
     }
 
     /**
