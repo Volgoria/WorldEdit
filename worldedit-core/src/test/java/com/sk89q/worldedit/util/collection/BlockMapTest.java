@@ -26,7 +26,6 @@ import com.sk89q.worldedit.registry.Registry;
 import com.sk89q.worldedit.util.test.VariedVectorGenerator;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockType;
-import com.sk89q.worldedit.world.block.BlockTypes;
 import org.enginehub.linbus.tree.LinCompoundTag;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -42,7 +41,9 @@ import org.mockito.MockitoAnnotations;
 
 import java.lang.reflect.Field;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -63,8 +64,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 @Execution(ExecutionMode.CONCURRENT)
 @DisplayName("An ordered block map")
 class BlockMapTest extends BaseWorldEditTest {
+    private static final List<String> REGISTERED = new ArrayList<>();
+
     @BeforeAll
     static void setupFakePlatform() {
+        // The air types are registered for every test, see CommonBlockTypesSessionListener
         registerBlock("minecraft:air");
         registerBlock("minecraft:oak_wood");
         registerBlock("minecraft:chest");
@@ -72,13 +76,27 @@ class BlockMapTest extends BaseWorldEditTest {
 
     @AfterAll
     static void tearDownFakePlatform() throws Exception {
+        // Only forget the types registered here, other tests may share the rest
         Field map = Registry.class.getDeclaredField("map");
         map.setAccessible(true);
-        ((Map<?, ?>) map.get(BlockType.REGISTRY)).clear();
+        Map<?, ?> types = (Map<?, ?>) map.get(BlockType.REGISTRY);
+        REGISTERED.forEach(types::remove);
+        REGISTERED.clear();
     }
 
     private static void registerBlock(String id) {
-        BlockType.REGISTRY.register(id, new BlockType(id));
+        if (!BlockType.REGISTRY.keySet().contains(id)) {
+            BlockType.REGISTRY.register(id, new BlockType(id));
+            REGISTERED.add(id);
+        }
+    }
+
+    /**
+     * Get a registered type. Not through the {@code BlockTypes} constants: they are read once,
+     * when that class is loaded, possibly by another test before these types were registered.
+     */
+    private static BlockType blockType(String id) {
+        return checkNotNull(BlockType.REGISTRY.get(id), id);
     }
 
     @Mock
@@ -88,9 +106,9 @@ class BlockMapTest extends BaseWorldEditTest {
     @Mock
     private BiConsumer<? super BlockVector3, ? super BaseBlock> biConsumer;
 
-    private final BaseBlock air = checkNotNull(BlockTypes.AIR).getDefaultState().toBaseBlock();
-    private final BaseBlock oakWood = checkNotNull(BlockTypes.OAK_WOOD).getDefaultState().toBaseBlock();
-    private final BaseBlock chestWithNbt = checkNotNull(BlockTypes.CHEST).getDefaultState().toBaseBlock(
+    private final BaseBlock air = blockType("minecraft:air").getDefaultState().toBaseBlock();
+    private final BaseBlock oakWood = blockType("minecraft:oak_wood").getDefaultState().toBaseBlock();
+    private final BaseBlock chestWithNbt = blockType("minecraft:chest").getDefaultState().toBaseBlock(
         LinCompoundTag.builder().putString("dummy", "value").build()
     );
 

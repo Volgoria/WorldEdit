@@ -115,9 +115,8 @@ public final class ClipboardIoTestSupport {
         when(registries.getBlockRegistry()).thenReturn(blockRegistry);
         when(platform.getRegistries()).thenReturn(registries);
 
-        // BlockTypes caches its constants when first loaded, which may happen during these tests.
-        // Register the types that tests use through those constants (including other test classes,
-        // such as BlockMapTest) first, so the constants are not initialized to null.
+        // The air types are already registered for every test (see CommonBlockTypesSessionListener),
+        // so BlockTypes.AIR is set whichever test loads BlockTypes first; the rest are only used here.
         for (String id : List.of(AIR, STONE, GLASS, CHEST, STAIRS, STRUCTURE_VOID, "minecraft:oak_wood")) {
             if (BlockType.REGISTRY.get(id) == null) {
                 BlockType.REGISTRY.register(id, new BlockType(id));

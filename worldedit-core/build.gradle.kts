@@ -66,6 +66,9 @@ dependencies {
     )
 
     "testRuntimeOnly"(libs.log4j.core)
+    "testImplementation"(libs.junit.platform.launcher) {
+        because("A launcher session listener registers the air block types before any test runs")
+    }
 }
 
 tasks.test {
