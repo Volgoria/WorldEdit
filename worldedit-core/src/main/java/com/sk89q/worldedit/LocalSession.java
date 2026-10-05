@@ -27,6 +27,7 @@ import com.sk89q.jchronic.utils.Span;
 import com.sk89q.jchronic.utils.Time;
 import com.sk89q.worldedit.command.tool.BlockTool;
 import com.sk89q.worldedit.command.tool.BrushTool;
+import com.sk89q.worldedit.command.tool.DoubleActionTraceTool;
 import com.sk89q.worldedit.command.tool.InvalidToolBindException;
 import com.sk89q.worldedit.command.tool.NavigationWand;
 import com.sk89q.worldedit.command.tool.SelectionWand;
@@ -804,7 +805,9 @@ public class LocalSession {
     public BrushTool forceBrush(ItemType item, Brush brush, String permission) throws InvalidToolBindException {
         synchronized (tools) {
             BrushTool tool = getBrush(item);
-            if (tool == null) {
+            // Trace tools such as the far wand or the measuring tape extend BrushTool but
+            // override its actions, so a brush set on them would never be used: replace them
+            if (tool == null || tool instanceof DoubleActionTraceTool) {
                 tool = new BrushTool(brush, permission);
                 setTool(item, tool);
             } else {

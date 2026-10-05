@@ -20,6 +20,7 @@
 package com.sk89q.worldedit;
 
 import com.sk89q.worldedit.command.tool.BrushTool;
+import com.sk89q.worldedit.command.tool.MeasureTool;
 import com.sk89q.worldedit.command.tool.brush.Brush;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.permission.ActorSelectorLimits;
@@ -48,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -206,6 +208,23 @@ class LocalSessionTest extends BaseWorldEditTest {
                 assertNotNull(session.getBrush(new ItemType("test:tool_" + t + "_" + i)));
             }
         }
+    }
+
+    @Test
+    void bindingABrushReplacesTraceTools() throws Exception {
+        ItemType item = new ItemType("test:measure");
+        session.setTool(item, new MeasureTool());
+        Brush brush = mock(Brush.class);
+        BrushTool tool = session.forceBrush(item, brush, "worldedit.brush.sphere");
+        assertEquals(BrushTool.class, tool.getClass());
+        assertSame(tool, session.getTool(item));
+        assertSame(brush, tool.getBrush());
+
+        // A plain brush tool is kept, with its settings
+        tool.setSize(7);
+        BrushTool again = session.forceBrush(item, mock(Brush.class), "worldedit.brush.sphere");
+        assertSame(tool, again);
+        assertEquals(7, again.getSize());
     }
 
     @Test
