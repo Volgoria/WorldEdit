@@ -52,7 +52,7 @@ import javax.annotation.Nullable;
 public final class LegacyMapper {
 
     private static final Logger LOGGER = LogManagerCompat.getLogger();
-    private static LegacyMapper INSTANCE;
+    private static volatile LegacyMapper INSTANCE;
     private final ResourceLoader resourceLoader;
 
     private final Map<String, BlockState> stringToBlockMap = new HashMap<>();
@@ -189,10 +189,19 @@ public final class LegacyMapper {
     }
 
     public static LegacyMapper getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new LegacyMapper();
+        // Double-checked locking: the mapper is expensive to build and may be first
+        // requested concurrently from async command threads.
+        LegacyMapper instance = INSTANCE;
+        if (instance == null) {
+            synchronized (LegacyMapper.class) {
+                instance = INSTANCE;
+                if (instance == null) {
+                    instance = new LegacyMapper();
+                    INSTANCE = instance;
+                }
+            }
         }
-        return INSTANCE;
+        return instance;
     }
 
     @SuppressWarnings({"MismatchedQueryAndUpdateOfCollection"})

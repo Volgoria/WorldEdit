@@ -53,7 +53,7 @@ import javax.annotation.Nullable;
 public final class BundledBlockData {
 
     private static final Logger LOGGER = LogManagerCompat.getLogger();
-    private static BundledBlockData INSTANCE;
+    private static volatile BundledBlockData INSTANCE;
 
     private final Map<String, BlockEntry> idMap = new HashMap<>();
 
@@ -124,10 +124,18 @@ public final class BundledBlockData {
      * @return the instance
      */
     public static BundledBlockData getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new BundledBlockData();
+        // Double-checked locking: loading is expensive and may race between threads.
+        BundledBlockData instance = INSTANCE;
+        if (instance == null) {
+            synchronized (BundledBlockData.class) {
+                instance = INSTANCE;
+                if (instance == null) {
+                    instance = new BundledBlockData();
+                    INSTANCE = instance;
+                }
+            }
         }
-        return INSTANCE;
+        return instance;
     }
 
     public static class BlockEntry {
