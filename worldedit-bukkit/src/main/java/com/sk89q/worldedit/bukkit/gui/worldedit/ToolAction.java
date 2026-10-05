@@ -32,7 +32,7 @@ public enum ToolAction implements GuiAction {
     INFO(ActionSpec.bind("Block info", "Shows the block you click", "BOOK", "/tool info")),
     INSPECT(ActionSpec.bind("Inspector", "Shows state, NBT data, biome and light of a block",
         "KNOWLEDGE_BOOK", "/tool inspect")),
-    MEASURE(ActionSpec.bind("Measuring tape", "Click two points to measure the distance between them",
+    MEASURE(ActionSpec.bind("Measuring tape", "Left-click: start measuring, right-click: add a point",
         "RECOVERY_COMPASS", "/tool measure")),
     TREE(ActionSpec.bind("Tree planter", "Grows a tree where you click", "OAK_SAPLING", "/tool tree")),
     REPLACER(ActionSpec.bind("Replacer", "Replaces the clicked block with your pattern", "SHEARS",

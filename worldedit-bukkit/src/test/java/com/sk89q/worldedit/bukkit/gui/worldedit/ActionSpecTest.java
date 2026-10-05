@@ -94,6 +94,13 @@ class ActionSpecTest {
     }
 
     @Test
+    void measuringTapeDescribesItsClicks() {
+        // left-click starts a new measurement, right-click adds points to it
+        assertEquals("Left-click: start measuring, right-click: add a point",
+            ToolAction.MEASURE.spec().description());
+    }
+
+    @Test
     void textInput() {
         assertEquals("\"Hello world\"", InputKind.TEXT.toArgument("  Hello world "));
         assertEquals("\"-h\"", InputKind.TEXT.toArgument("-h"));
