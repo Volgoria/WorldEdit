@@ -120,7 +120,24 @@ includeBuild("build-logic")
 
 include("worldedit-libs")
 
-listOf("1.21.4", "1.21.5", "1.21.6", "1.21.9", "1.21.11", "26.1", "26.2", "26.3").forEach {
+val allBukkitAdapters = listOf("1.21.4", "1.21.5", "1.21.6", "1.21.9", "1.21.11", "26.1", "26.2", "26.3")
+// Opt-in: restrict which Bukkit adapters are built and bundled, e.g. -PbukkitAdapters=26.3,26.2
+// Unset, empty or "all" keeps every adapter (the default, upstream behaviour).
+val bukkitAdapters = providers.gradleProperty("bukkitAdapters").orNull
+    ?.split(',')?.map(String::trim)?.filter(String::isNotEmpty)
+    ?.takeUnless { it.isEmpty() || it == listOf("all") }
+    ?.also { requested ->
+        val unknown = requested.filterNot(allBukkitAdapters::contains)
+        require(unknown.isEmpty()) {
+            "Unknown Bukkit adapter version(s) in -PbukkitAdapters: ${unknown.joinToString()}. " +
+                "Known versions: ${allBukkitAdapters.joinToString()}"
+        }
+    }
+    ?: allBukkitAdapters
+if (bukkitAdapters != allBukkitAdapters) {
+    logger.lifecycle("Building only Bukkit adapters: ${bukkitAdapters.joinToString()} (from bukkitAdapters property)")
+}
+bukkitAdapters.forEach {
     include("worldedit-bukkit:adapters:adapter-$it")
 }
 
