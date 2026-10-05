@@ -43,8 +43,12 @@ import com.sk89q.worldedit.command.ExpandCommands;
 import com.sk89q.worldedit.command.GeneralCommands;
 import com.sk89q.worldedit.command.GenerationCommands;
 import com.sk89q.worldedit.command.GenerationCommandsRegistration;
+import com.sk89q.worldedit.command.HeightmapCommands;
+import com.sk89q.worldedit.command.HeightmapCommandsRegistration;
 import com.sk89q.worldedit.command.HistoryCommands;
 import com.sk89q.worldedit.command.HistoryCommandsRegistration;
+import com.sk89q.worldedit.command.ImageCommands;
+import com.sk89q.worldedit.command.ImageCommandsRegistration;
 import com.sk89q.worldedit.command.NavigationCommands;
 import com.sk89q.worldedit.command.NavigationCommandsRegistration;
 import com.sk89q.worldedit.command.PaintBrushCommands;
@@ -353,6 +357,18 @@ public final class PlatformCommandManager {
                 PaintBrushCommands.register(commandManagerService, manager, registration);
                 ApplyBrushCommands.register(commandManagerService, manager, registration);
             }
+        );
+        registerSubCommands(
+            "/heightmap",
+            ImmutableList.of("/hmap"),
+            "Heightmap image commands for importing/exporting terrain",
+            HeightmapCommandsRegistration.builder(),
+            new HeightmapCommands(worldEdit)
+        );
+        this.registration.register(
+            commandManager,
+            ImageCommandsRegistration.builder(),
+            new ImageCommands(worldEdit)
         );
         registerSubCommands(
             "worldedit",

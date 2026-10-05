@@ -359,7 +359,19 @@
     "worldedit.asset.load.still-loading": "(Please wait... still loading asset.)",
     "worldedit.asset.load.failed": "Failed to load asset",
 
-    "worldedit.registry.error.invalid-key": "Invalid registry key: {0}",
+    "worldedit.image.does-not-exist": "Image {0} does not exist in the images folder!",
+    "worldedit.image.read-failed": "Could not read image {0}: {1}",
+    "worldedit.image.write-failed": "Could not write image {0}: {1}",
+    "worldedit.image.already-exists": "Image {0} already exists. Use the -f flag to overwrite it.",
+    "worldedit.image.too-large": "Size {0}x{1} is too large; the maximum is {2}x{2}.",
+    "worldedit.image.need-player": "Only players can place images in front of them; use -s to place it on your selection.",
+    "worldedit.image.empty-palette": "None of the palette blocks are available on this platform.",
+    "worldedit.image.created": "Built {0} as {1}x{2} blocks; {3} blocks changed.",
+    "worldedit.image.exported": "Saved a top view of the selection to {0} ({1}x{2}).",
+    "worldedit.heightmap.imported": "Built terrain from {0}; {1} blocks changed.",
+    "worldedit.heightmap.exported": "Saved heightmap to {0} ({1}x{2}; black is Y {3}, white is {4} blocks higher).",
+
+    "worldedit.registry.error.invalid-key":"Invalid registry key: {0}",
     "worldedit.registry.searching": "(Please wait... searching registry...)",
 
     "worldedit.tool.max-block-changes": "Max blocks change limit reached.",
