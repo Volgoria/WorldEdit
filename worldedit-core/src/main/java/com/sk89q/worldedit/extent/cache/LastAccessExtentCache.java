@@ -27,14 +27,21 @@ import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 
+import javax.annotation.Nullable;
+
 /**
  * Returns the same cached {@link BlockState} for repeated calls to
  * {@link #getBlock(BlockVector3)} with the same position.
  */
 public class LastAccessExtentCache extends AbstractDelegateExtent {
 
-    private CachedBlock<BlockState> lastBlock;
-    private CachedBlock<BaseBlock> lastFullBlock;
+    // The last block and full block read, each with its position (null when
+    // nothing is cached). Plain fields rather than holder objects, so that a
+    // cache miss does not allocate: every block an EditSession changes misses.
+    private @Nullable BlockVector3 lastBlockPosition;
+    private BlockState lastBlock;
+    private @Nullable BlockVector3 lastFullBlockPosition;
+    private BaseBlock lastFullBlock;
 
     /**
      * Create a new instance.
@@ -47,26 +54,29 @@ public class LastAccessExtentCache extends AbstractDelegateExtent {
 
     @Override
     public BlockState getBlock(BlockVector3 position) {
-        CachedBlock<BlockState> lastBlock = this.lastBlock;
-        if (lastBlock != null && lastBlock.position.equals(position)) {
-            return lastBlock.block;
-        } else if (lastFullBlock != null && lastFullBlock.position.equals(position)) {
-            return lastFullBlock.block().toImmutableState();
+        BlockVector3 lastBlockPosition = this.lastBlockPosition;
+        BlockVector3 lastFullBlockPosition = this.lastFullBlockPosition;
+        if (lastBlockPosition != null && lastBlockPosition.equals(position)) {
+            return lastBlock;
+        } else if (lastFullBlockPosition != null && lastFullBlockPosition.equals(position)) {
+            return lastFullBlock.toImmutableState();
         } else {
             BlockState block = super.getBlock(position);
-            this.lastBlock = new CachedBlock<>(position, block);
+            this.lastBlockPosition = position;
+            this.lastBlock = block;
             return block;
         }
     }
 
     @Override
     public BaseBlock getFullBlock(BlockVector3 position) {
-        CachedBlock<BaseBlock> lastFullBlock = this.lastFullBlock;
-        if (lastFullBlock != null && lastFullBlock.position.equals(position)) {
-            return lastFullBlock.block;
+        BlockVector3 lastFullBlockPosition = this.lastFullBlockPosition;
+        if (lastFullBlockPosition != null && lastFullBlockPosition.equals(position)) {
+            return lastFullBlock;
         } else {
             BaseBlock block = super.getFullBlock(position);
-            this.lastFullBlock = new CachedBlock<>(position, block);
+            this.lastFullBlockPosition = position;
+            this.lastFullBlock = block;
             return block;
         }
     }
@@ -74,19 +84,18 @@ public class LastAccessExtentCache extends AbstractDelegateExtent {
     @Override
     public <T extends BlockStateHolder<T>> boolean setBlock(BlockVector3 location, T block) throws WorldEditException {
         if (super.setBlock(location, block)) {
-            if (lastFullBlock != null && lastFullBlock.position.equals(location)) {
-                this.lastFullBlock = new CachedBlock<>(location, block.toBaseBlock());
+            if (lastFullBlockPosition != null && lastFullBlockPosition.equals(location)) {
+                this.lastFullBlockPosition = location;
+                this.lastFullBlock = block.toBaseBlock();
             }
-            if (lastBlock != null && lastBlock.position.equals(location)) {
-                this.lastBlock = new CachedBlock<>(location, block.toImmutableState());
+            if (lastBlockPosition != null && lastBlockPosition.equals(location)) {
+                this.lastBlockPosition = location;
+                this.lastBlock = block.toImmutableState();
             }
 
             return true;
         }
         return false;
-    }
-
-    private record CachedBlock<B extends BlockStateHolder<B>>(BlockVector3 position, B block) {
     }
 
 }
