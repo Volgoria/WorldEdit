@@ -45,9 +45,6 @@ import com.sk89q.worldedit.extent.world.ChunkLoadingExtent;
 import com.sk89q.worldedit.extent.world.SideEffectExtent;
 import com.sk89q.worldedit.extent.world.SurvivalModeExtent;
 import com.sk89q.worldedit.extent.world.WatchdogTickingExtent;
-import com.sk89q.worldedit.function.RegionMaskingFilter;
-import com.sk89q.worldedit.function.block.BlockDistributionCounter;
-import com.sk89q.worldedit.function.block.Counter;
 import com.sk89q.worldedit.function.mask.BlockMask;
 import com.sk89q.worldedit.function.mask.ExistingBlockMask;
 import com.sk89q.worldedit.function.mask.Mask;
@@ -56,10 +53,10 @@ import com.sk89q.worldedit.function.operation.ChangeSetExecutor;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.function.visitor.RegionVisitor;
 import com.sk89q.worldedit.history.UndoContext;
 import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
 import com.sk89q.worldedit.history.changeset.ChangeSet;
+import com.sk89q.worldedit.internal.edit.BlockAnalysis;
 import com.sk89q.worldedit.internal.edit.ExpressionOperations;
 import com.sk89q.worldedit.internal.edit.LineGenerator;
 import com.sk89q.worldedit.internal.edit.MorphologyOperations;
@@ -67,6 +64,7 @@ import com.sk89q.worldedit.internal.edit.RegionCopyOperations;
 import com.sk89q.worldedit.internal.edit.RegionOperations;
 import com.sk89q.worldedit.internal.edit.ShapeGenerator;
 import com.sk89q.worldedit.internal.edit.TerrainOperations;
+import com.sk89q.worldedit.internal.edit.TracingReport;
 import com.sk89q.worldedit.internal.expression.Expression;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -82,10 +80,7 @@ import com.sk89q.worldedit.regions.RegionOperationException;
 import com.sk89q.worldedit.util.Countable;
 import com.sk89q.worldedit.util.SideEffectSet;
 import com.sk89q.worldedit.util.TreeGenerator;
-import com.sk89q.worldedit.util.collection.BlockMap;
 import com.sk89q.worldedit.util.eventbus.EventBus;
-import com.sk89q.worldedit.util.formatting.text.TextComponent;
-import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.world.NullWorld;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
@@ -96,9 +91,6 @@ import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.generation.TreeType;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -728,16 +720,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return height of highest block found or 'minY'
      */
     public int getHighestTerrainBlock(int x, int z, int minY, int maxY, Mask filter) {
-        for (int y = maxY; y >= minY; --y) {
-            BlockVector3 pt = BlockVector3.at(x, y, z);
-            if (filter == null
-                    ? getBlock(pt).getBlockType().getMaterial().isSolid()
-                    : filter.test(pt)) {
-                return y;
-            }
-        }
-
-        return minY;
+        return BlockAnalysis.getHighestTerrainBlock(this, x, z, minY, maxY, filter);
     }
 
     /**
@@ -906,40 +889,8 @@ public class EditSession implements Extent, AutoCloseable {
         if (this.tracingExtents == null) {
             return;
         }
-        List<TracingExtent> tracingExtents = getActiveTracingExtents();
         assert actor != null;
-        if (tracingExtents.isEmpty()) {
-            actor.printError(TranslatableComponent.of("worldedit.trace.no-tracing-extents"));
-            return;
-        }
-        // find the common stacks
-        Set<List<TracingExtent>> stacks = new LinkedHashSet<>();
-        Map<List<TracingExtent>, BlockVector3> stackToPosition = new HashMap<>();
-        Set<BlockVector3> touchedLocations = Collections.newSetFromMap(BlockMap.create());
-        for (TracingExtent tracingExtent : tracingExtents) {
-            touchedLocations.addAll(tracingExtent.getTouchedLocations());
-        }
-        for (BlockVector3 loc : touchedLocations) {
-            List<TracingExtent> stack = tracingExtents.stream()
-                    .filter(it -> it.getTouchedLocations().contains(loc))
-                    .toList();
-            boolean anyFailed = stack.stream()
-                .anyMatch(it -> it.getFailedActions().containsKey(loc));
-            if (anyFailed && stacks.add(stack)) {
-                stackToPosition.put(stack, loc);
-            }
-        }
-        stackToPosition.forEach((stack, position) -> {
-            // stack can never be empty, something has to have touched the position
-            TracingExtent failure = stack.get(0);
-            actor.printDebug(TranslatableComponent.builder("worldedit.trace.action-failed")
-                .args(
-                    TextComponent.of(failure.getFailedActions().get(position).toString()),
-                    TextComponent.of(position.toString()),
-                    TextComponent.of(failure.getExtent().getClass().getName())
-                )
-                .build());
-        });
+        TracingReport.report(actor, getActiveTracingExtents());
     }
 
     /**
@@ -982,11 +933,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return the number of blocks that matched the mask
      */
     public int countBlocks(Region region, Mask searchMask) {
-        Counter count = new Counter();
-        RegionMaskingFilter filter = new RegionMaskingFilter(searchMask, count);
-        RegionVisitor visitor = new RegionVisitor(region, filter);
-        Operations.completeBlindly(visitor); // We can't throw exceptions, nor do we expect any
-        return count.getCount();
+        return BlockAnalysis.countBlocks(region, searchMask);
     }
 
     /**
@@ -1703,10 +1650,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return the results
      */
     public List<Countable<BlockState>> getBlockDistribution(Region region, @Nullable Mask mask, boolean separateStates) {
-        BlockDistributionCounter count = new BlockDistributionCounter(this, mask, separateStates);
-        RegionVisitor visitor = new RegionVisitor(region, count);
-        Operations.completeBlindly(visitor);
-        return count.getDistribution();
+        return BlockAnalysis.getBlockDistribution(this, region, mask, separateStates);
     }
 
     /**
