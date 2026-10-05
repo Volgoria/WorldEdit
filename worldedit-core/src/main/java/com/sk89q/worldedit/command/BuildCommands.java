@@ -66,6 +66,7 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.sk89q.worldedit.command.util.CommandHelper.checkRadii;
 import static com.sk89q.worldedit.command.util.CommandHelper.findFreePosition;
 import static com.sk89q.worldedit.command.util.CommandHelper.printAffected;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.ORIENTATION_REGION;
@@ -134,6 +135,8 @@ public class BuildCommands {
         }
         checkCommandArgument(size >= 1, "Size must be at least 1");
         checkCommandArgument(thickness >= 1, "Thickness must be at least 1");
+        // Checked before the text dimensions, which would overflow for huge sizes
+        worldEdit.checkMaxRadius(size);
         BlockVector3 right = worldEdit.getDirection(actor instanceof Player player ? player : null, direction);
         if (!isHorizontalUnit(right)) {
             actor.printError(TranslatableComponent.of("worldedit.text.invalid-direction"));
@@ -324,7 +327,7 @@ public class BuildCommands {
         checkCommandArgument(size >= 0.5, "Size must be at least 0.5");
         checkCommandArgument(length >= 1, "Length must be at least 1");
         checkCommandArgument(count >= 1 && count <= 64, "Count must be between 1 and 64");
-        worldEdit.checkMaxRadius(size);
+        checkRadii(worldEdit, size);
 
         CaveCarver carver = new CaveCarver(size, length, seedOf(seed));
         int affected = carver.carve(editSession, region, count, air());

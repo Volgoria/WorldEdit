@@ -84,6 +84,7 @@ import org.enginehub.piston.annotation.param.Switch;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.sk89q.worldedit.command.util.CommandHelper.checkRadii;
 import static com.sk89q.worldedit.command.util.CommandHelper.findFreePosition;
 import static com.sk89q.worldedit.command.util.CommandHelper.printAffected;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.ALL;
@@ -150,7 +151,7 @@ public class RegionCommands {
             return 0;
         }
         checkCommandArgument(thickness >= 0, "Thickness must be >= 0");
-        WorldEdit.getInstance().checkMaxRadius(thickness);
+        checkRadii(WorldEdit.getInstance(), thickness);
 
         List<BlockVector3> vectors;
 
@@ -186,7 +187,7 @@ public class RegionCommands {
             return 0;
         }
         checkCommandArgument(thickness >= 0, "Thickness must be >= 0");
-        WorldEdit.getInstance().checkMaxRadius(thickness);
+        checkRadii(WorldEdit.getInstance(), thickness);
 
         List<BlockVector3> vectors = new ArrayList<>(cpregion.getVertices());
 

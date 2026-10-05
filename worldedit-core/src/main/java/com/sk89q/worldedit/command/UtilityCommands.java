@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 
+import static com.sk89q.worldedit.command.util.CommandHelper.checkRadii;
 import static com.sk89q.worldedit.command.util.CommandHelper.printAffected;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.PLACEMENT;
 
@@ -100,7 +101,7 @@ public class UtilityCommands {
                     @Arg(desc = "The depth to fill", def = "1")
                         int depth) throws WorldEditException {
         radius = Math.max(1, radius);
-        we.checkMaxRadius(radius);
+        checkRadii(we, radius);
         depth = Math.max(1, depth);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
@@ -122,9 +123,8 @@ public class UtilityCommands {
                      @Arg(desc = "The depth to fill", def = "")
                          Integer depth) throws WorldEditException {
         radius = Math.max(1, radius);
-        we.checkMaxRadius(radius);
+        checkRadii(we, radius);
         depth = depth == null ? Integer.MAX_VALUE : Math.max(1, depth);
-        we.checkMaxRadius(radius);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
         int affected = editSession.fillXZ(pos, pattern, radius, depth, true);
@@ -143,7 +143,7 @@ public class UtilityCommands {
                      @Switch(name = 'w', desc = "Also un-waterlog blocks")
                          boolean waterlogged) throws WorldEditException {
         radius = Math.max(0, radius);
-        we.checkMaxRadius(radius);
+        checkRadii(we, radius);
         int affected = editSession.drainArea(session.getPlacementPosition(actor), radius, waterlogged);
         return printAffected(actor, "worldedit.drain.drained", affected);
     }
@@ -159,7 +159,7 @@ public class UtilityCommands {
                        @Arg(desc = "The radius to fix in")
                            double radius) throws WorldEditException {
         radius = Math.max(0, radius);
-        we.checkMaxRadius(radius);
+        checkRadii(we, radius);
         int affected = editSession.fixLiquid(session.getPlacementPosition(actor), radius, BlockTypes.LAVA);
         return printAffected(actor, "worldedit.fixlava.fixed", affected);
     }
@@ -175,7 +175,7 @@ public class UtilityCommands {
                         @Arg(desc = "The radius to fix in")
                             double radius) throws WorldEditException {
         radius = Math.max(0, radius);
-        we.checkMaxRadius(radius);
+        checkRadii(we, radius);
         int affected = editSession.fixLiquid(session.getPlacementPosition(actor), radius, BlockTypes.WATER);
         return printAffected(actor, "worldedit.fixwater.fixed", affected);
     }
@@ -239,7 +239,7 @@ public class UtilityCommands {
                           @Arg(desc = "The radius of the square to remove from", def = "50")
                               int radius) throws WorldEditException {
         radius = Math.max(1, radius);
-        we.checkMaxRadius(radius);
+        checkRadii(we, radius);
 
         int affected = editSession.removeNear(session.getPlacementPosition(actor), mask, radius);
         return printAffected(actor, "worldedit.removenear.removed", affected);
@@ -260,7 +260,7 @@ public class UtilityCommands {
                            @Arg(desc = "The pattern of blocks to replace with")
                                Pattern to) throws WorldEditException {
         radius = Math.max(1, radius);
-        we.checkMaxRadius(radius);
+        checkRadii(we, radius);
 
         BlockVector3 base = session.getPlacementPosition(actor);
         BlockVector3 min = base.subtract(radius, radius, radius);
@@ -295,7 +295,7 @@ public class UtilityCommands {
                         boolean stack) throws WorldEditException {
         size = Math.max(1, size);
         height = Math.max(1, height);
-        we.checkMaxRadius(size);
+        checkRadii(we, size);
 
         BlockVector3 position = session.getPlacementPosition(actor);
 
@@ -322,7 +322,7 @@ public class UtilityCommands {
                         int height) throws WorldEditException {
         size = Math.max(1, size);
         height = Math.max(1, height);
-        we.checkMaxRadius(size);
+        checkRadii(we, size);
 
         int affected = editSession.thaw(session.getPlacementPosition(actor), size, height);
         return printAffected(actor, "worldedit.thaw.removed", affected);
@@ -348,7 +348,7 @@ public class UtilityCommands {
                          boolean convertCoarse) throws WorldEditException {
         size = Math.max(1, size);
         height = Math.max(1, height);
-        we.checkMaxRadius(size);
+        checkRadii(we, size);
         final boolean onlyNormalDirt = !convertCoarse;
 
         final int affected = editSession.green(
