@@ -31,6 +31,7 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.AbstractFlatRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionOperationException;
+import com.sk89q.worldedit.util.collection.BlockMap;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.biome.BiomeTypes;
 import com.sk89q.worldedit.world.block.BaseBlock;
@@ -38,7 +39,6 @@ import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -53,8 +53,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class ForgetfulExtentBuffer extends AbstractDelegateExtent implements Pattern, BiomePattern {
 
-    private final Map<BlockVector3, BaseBlock> buffer = new LinkedHashMap<>();
-    private final Map<BlockVector3, BiomeType> biomeBuffer = new LinkedHashMap<>();
+    private final Map<BlockVector3, BaseBlock> buffer = BlockMap.createForBaseBlock();
+    private final Map<BlockVector3, BiomeType> biomeBuffer = BlockMap.create();
     private final Mask mask;
     private BlockVector3 min = null;
     private BlockVector3 max = null;
