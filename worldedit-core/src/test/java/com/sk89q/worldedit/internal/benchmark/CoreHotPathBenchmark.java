@@ -71,8 +71,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Execution(ExecutionMode.SAME_THREAD)
 class CoreHotPathBenchmark extends BaseWorldEditTest {
 
-    private static final int WARMUP = 5;
-    private static final int MEASURE = 9;
+    private static final int WARMUP = 10;
+    private static final int MEASURE = 21;
 
     private static BlockState stone;
     private static BlockState dirt;
