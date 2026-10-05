@@ -32,6 +32,7 @@ import com.sk89q.worldedit.bukkit.adapter.AdapterLoadException;
 import com.sk89q.worldedit.bukkit.adapter.BukkitImplAdapter;
 import com.sk89q.worldedit.bukkit.adapter.BukkitImplLoader;
 import com.sk89q.worldedit.bukkit.folia.FoliaExtentListener;
+import com.sk89q.worldedit.bukkit.gui.worldedit.WorldEditGui;
 import com.sk89q.worldedit.event.platform.CommandEvent;
 import com.sk89q.worldedit.event.platform.CommandSuggestionEvent;
 import com.sk89q.worldedit.event.platform.ConfigurationLoadEvent;
@@ -112,6 +113,7 @@ public class WorldEditPlugin extends JavaPlugin implements TabCompleter {
         SimpleLifecycled.invalid();
     private BukkitServerInterface platform;
     private BukkitConfiguration config;
+    private WorldEditGui gui;
 
     @Override
     public void onLoad() {
@@ -157,6 +159,8 @@ public class WorldEditPlugin extends JavaPlugin implements TabCompleter {
 
         // Now we can register events
         getServer().getPluginManager().registerEvents(new WorldEditListener(this), this);
+        // In-game menus (/wegui)
+        gui = WorldEditGui.enable(this);
         // register async tab complete, if available
         if (PaperLib.isPaper()) {
             getServer().getPluginManager().registerEvents(new AsyncTabCompleteListener(), this);
@@ -306,6 +310,10 @@ public class WorldEditPlugin extends JavaPlugin implements TabCompleter {
      */
     @Override
     public void onDisable() {
+        if (gui != null) {
+            gui.disable();
+            gui = null;
+        }
         WorldEdit worldEdit = WorldEdit.getInstance();
         worldEdit.getSessionManager().unload();
         if (platform != null) {
