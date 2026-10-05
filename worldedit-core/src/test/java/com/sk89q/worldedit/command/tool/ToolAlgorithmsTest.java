@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("Tool algorithms")
 class ToolAlgorithmsTest {
@@ -101,5 +103,13 @@ class ToolAlgorithmsTest {
             .build();
         assertEquals("Items (list[2]), components (compound{1}), id (string), x (int)", InspectTool.summarizeNbt(tag, 10));
         assertEquals("Items (list[2]), components (compound{1}), +2 more", InspectTool.summarizeNbt(tag, 2));
+    }
+
+    @Test
+    @DisplayName("inspect only offers NBT text small enough for a chat packet")
+    void inspectBoundsCopiedNbt() {
+        assertTrue(InspectTool.isCopyable("{id:'minecraft:chest'}"));
+        assertTrue(InspectTool.isCopyable("x".repeat(InspectTool.MAX_COPIED_NBT_LENGTH)));
+        assertFalse(InspectTool.isCopyable("x".repeat(InspectTool.MAX_COPIED_NBT_LENGTH + 1)));
     }
 }

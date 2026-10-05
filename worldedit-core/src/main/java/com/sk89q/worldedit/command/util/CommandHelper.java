@@ -19,10 +19,13 @@
 
 package com.sk89q.worldedit.command.util;
 
+import com.sk89q.worldedit.LocalSession;
+import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.MaxRadiusException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.Actor;
+import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
@@ -90,6 +93,32 @@ public final class CommandHelper {
             checkFinite(radius);
             worldEdit.checkMaxRadius(radius);
         }
+    }
+
+    /**
+     * Check that a region is small enough to be read in one go, as {@code //copy} does.
+     * Commands that read every block of a region (e.g. image exports) do so synchronously,
+     * and no edit session limit applies to reads.
+     *
+     * @param region the region
+     * @param session the session, whose block change limit applies
+     * @throws MaxChangedBlocksException if the region is larger than the limit
+     */
+    public static void checkReadLimit(Region region, LocalSession session) throws MaxChangedBlocksException {
+        int limit = session.getBlockChangeLimit();
+        if (limit >= 0 && region.getBoundingBox().getVolume() >= limit) {
+            throw new MaxChangedBlocksException(limit);
+        }
+    }
+
+    /**
+     * Check whether an actor may load schematic files, as with {@code //schem load}.
+     *
+     * @param actor the actor
+     * @return true if the actor has one of the load permissions
+     */
+    public static boolean canLoadSchematics(Actor actor) {
+        return actor.hasPermission("worldedit.clipboard.load") || actor.hasPermission("worldedit.schematic.load");
     }
 
     /**

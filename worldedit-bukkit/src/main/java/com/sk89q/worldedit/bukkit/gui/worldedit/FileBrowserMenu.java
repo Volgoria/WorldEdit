@@ -75,6 +75,13 @@ abstract class FileBrowserMenu extends PaginatedMenu<FolderFiles.Entry> {
     protected abstract Path folder();
 
     /**
+     * Get the permissions of which one is needed to see the listed files.
+     *
+     * @return the permissions
+     */
+    protected abstract List<String> browsePermissions();
+
+    /**
      * Get the accepted file extensions, without dots.
      *
      * @return the extensions
@@ -106,6 +113,12 @@ abstract class FileBrowserMenu extends PaginatedMenu<FolderFiles.Entry> {
 
     @Override
     public void open(Player player) {
+        if (!GuiCommands.mayBrowse(player::hasPermission, browsePermissions())) {
+            // The listing would show file names the player could not list with commands
+            player.closeInventory();
+            player.sendMessage(Text.PREFIX + Text.RED + "You don't have permission to browse the " + what + ".");
+            return;
+        }
         reload();
         super.open(player);
     }

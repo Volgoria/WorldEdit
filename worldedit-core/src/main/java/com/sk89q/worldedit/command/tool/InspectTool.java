@@ -59,6 +59,12 @@ public class InspectTool implements BlockTool {
      */
     public static final int MAX_LISTED_KEYS = 12;
 
+    /**
+     * The longest NBT text offered for copying. Block entities can hold megabytes of data
+     * (e.g. containers full of books), which would not fit in a chat packet.
+     */
+    public static final int MAX_COPIED_NBT_LENGTH = 32767;
+
     @Override
     public boolean canUse(Actor player) {
         return player.hasPermission("worldedit.tool.inspect");
@@ -89,12 +95,17 @@ public class InspectTool implements BlockTool {
             player.printInfo(TranslatableComponent.of("worldedit.tool.inspect.no-nbt"));
         } else {
             String snbt = LinStringIO.writeToString(nbt);
-            player.printInfo(TranslatableComponent.of("worldedit.tool.inspect.nbt",
-                TextComponent.of(nbt.value().size()),
-                TextComponent.of(summarizeNbt(nbt, MAX_LISTED_KEYS), TextColor.WHITE)
+            TextComponent summary = TextComponent.of(summarizeNbt(nbt, MAX_LISTED_KEYS), TextColor.WHITE);
+            if (isCopyable(snbt)) {
+                summary = summary
                     .hoverEvent(HoverEvent.of(HoverEvent.Action.SHOW_TEXT, TranslatableComponent.of("worldedit.tool.inspect.nbt.hover")))
-                    .clickEvent(ClickEvent.of(ClickEvent.Action.COPY_TO_CLIPBOARD, snbt))
-            ));
+                    .clickEvent(ClickEvent.of(ClickEvent.Action.COPY_TO_CLIPBOARD, snbt));
+            } else {
+                summary = summary.hoverEvent(HoverEvent.of(HoverEvent.Action.SHOW_TEXT,
+                    TranslatableComponent.of("worldedit.tool.inspect.nbt.too-large", TextComponent.of(snbt.length()))));
+            }
+            player.printInfo(TranslatableComponent.of("worldedit.tool.inspect.nbt",
+                TextComponent.of(nbt.value().size()), summary));
         }
 
         player.printInfo(TranslatableComponent.of("worldedit.tool.inspect.environment",
@@ -103,6 +114,16 @@ public class InspectTool implements BlockTool {
             TextComponent.of(world.getBlockLightLevel(position.add(0, 1, 0)))
         ));
         return true;
+    }
+
+    /**
+     * Check whether NBT text is short enough to be offered for copying.
+     *
+     * @param snbt the NBT text
+     * @return true if it may be sent to the player
+     */
+    public static boolean isCopyable(String snbt) {
+        return snbt.length() <= MAX_COPIED_NBT_LENGTH;
     }
 
     /**

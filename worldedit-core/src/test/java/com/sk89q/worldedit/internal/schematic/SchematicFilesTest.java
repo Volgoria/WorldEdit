@@ -83,6 +83,15 @@ class SchematicFilesTest extends BaseWorldEditTest {
         assertEquals(new File(folder, ".hidden.mtl"), SchematicFiles.withExtension(new File(folder, ".hidden"), "mtl"));
     }
 
+    @Test
+    @DisplayName("only the OBJ format writes a material library, which saving must check for overwrites")
+    void materialLibrary() {
+        assertTrue(SchematicFiles.writesMaterialLibrary(BuiltInClipboardFormat.WAVEFRONT_OBJ));
+        assertFalse(SchematicFiles.writesMaterialLibrary(BuiltInClipboardFormat.JSON));
+        assertFalse(SchematicFiles.writesMaterialLibrary(BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC));
+        assertFalse(SchematicFiles.writesMaterialLibrary(BuiltInClipboardFormat.MINECRAFT_STRUCTURE));
+    }
+
     private Path create(String name, String content) throws IOException {
         Path path = root.resolve(name);
         Files.createDirectories(path.getParent());

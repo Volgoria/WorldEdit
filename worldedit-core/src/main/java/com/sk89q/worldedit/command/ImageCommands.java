@@ -23,6 +23,7 @@ import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.command.util.CommandHelper;
 import com.sk89q.worldedit.command.util.CommandPermissions;
 import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.command.util.Logging;
@@ -186,7 +187,7 @@ public class ImageCommands {
             + "The image is saved in the images folder."
     )
     @CommandPermissions("worldedit.image.export")
-    public void topView(Actor actor, World world,
+    public void topView(Actor actor, World world, LocalSession session,
                         @Selection Region region,
                         @Arg(desc = "Image file name, inside the images folder")
                             String filename,
@@ -197,6 +198,7 @@ public class ImageCommands {
         if (!checkExportSize(actor, region)) {
             return;
         }
+        CommandHelper.checkReadLimit(region, session);
         File file = resolveSave(worldEdit, actor, filename, overwrite);
         if (file == null) {
             return;

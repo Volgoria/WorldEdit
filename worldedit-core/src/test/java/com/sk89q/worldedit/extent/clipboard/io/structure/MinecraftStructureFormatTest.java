@@ -45,6 +45,7 @@ import com.sk89q.worldedit.world.entity.EntityType;
 import org.enginehub.linbus.stream.LinBinaryIO;
 import org.enginehub.linbus.tree.LinCompoundTag;
 import org.enginehub.linbus.tree.LinDoubleTag;
+import org.enginehub.linbus.tree.LinIntArrayTag;
 import org.enginehub.linbus.tree.LinIntTag;
 import org.enginehub.linbus.tree.LinListTag;
 import org.enginehub.linbus.tree.LinRootEntry;
@@ -336,7 +337,7 @@ class MinecraftStructureFormatTest extends BaseWorldEditTest {
                 .add(LinCompoundTag.builder().putInt("state", 1).put("pos", ints(1, 0, 0)).build())
                 .add(LinCompoundTag.builder().putInt("state", 2).put("pos", ints(0, 0, 1)).build())
                 .build())
-            .put("entities", LinListTag.empty(LinTagType.compoundTag()))
+            .put("entities", LinListTag.builder(LinTagType.compoundTag()).build())
             .build();
         byte[] data = gzipNbt(root);
 
@@ -431,6 +432,89 @@ class MinecraftStructureFormatTest extends BaseWorldEditTest {
 
         LinCompoundTag emptySize = badState.toBuilder().put("size", ints(0, 1, 1)).build();
         assertThrows(IOException.class, () -> read(gzipNbt(emptySize)));
+    }
+
+    @Test
+    @DisplayName("refuses huge declared sizes before allocating the clipboard")
+    void rejectsHugeSizes() throws Exception {
+        LinCompoundTag empty = LinCompoundTag.builder()
+            .put("size", ints(1, 1, 1))
+            .put("palette", LinListTag.builder(LinTagType.compoundTag())
+                .add(LinCompoundTag.builder().putString("Name", STONE).build())
+                .build())
+            .put("blocks", LinListTag.builder(LinTagType.compoundTag()).build())
+            .build();
+        // A few bytes would otherwise request gigabytes of memory, or overflow the array size
+        for (int[] size : new int[][] {
+            {1024, 1024, 1024}, {65536, 65536, 1}, {Integer.MAX_VALUE, 1, 1}, {MinecraftStructureReader.MAX_AXIS_SIZE + 1, 1, 1},
+        }) {
+            LinCompoundTag huge = empty.toBuilder().put("size", ints(size)).build();
+            IOException e = assertThrows(IOException.class, () -> read(gzipNbt(huge)));
+            assertTrue(e.getMessage().contains("too large"), e.getMessage());
+        }
+        LinCompoundTag negative = empty.toBuilder().put("size", ints(-5, 1, 1)).build();
+        assertThrows(IOException.class, () -> read(gzipNbt(negative)));
+    }
+
+    @Test
+    @DisplayName("refuses metadata positions that overflow")
+    void rejectsOverflowingOrigin() throws Exception {
+        LinCompoundTag structure = LinCompoundTag.builder()
+            .put("size", ints(16, 1, 1))
+            .put("palette", LinListTag.builder(LinTagType.compoundTag())
+                .add(LinCompoundTag.builder().putString("Name", STONE).build())
+                .build())
+            .put("blocks", LinListTag.builder(LinTagType.compoundTag()).build())
+            .put(MinecraftStructureWriter.METADATA_TAG, LinCompoundTag.builder()
+                .put("Origin", LinIntArrayTag.of(new int[] {Integer.MAX_VALUE - 4, 0, 0}))
+                .put("Offset", LinIntArrayTag.of(new int[] {0, 0, 0}))
+                .build())
+            .build();
+        assertThrows(IOException.class, () -> read(gzipNbt(structure)));
+    }
+
+    @Test
+    @DisplayName("reports missing or mistyped tags as I/O errors")
+    void malformedTagsAreIoErrors() throws Exception {
+        LinCompoundTag noState = LinCompoundTag.builder()
+            .put("size", ints(1, 1, 1))
+            .put("palette", LinListTag.builder(LinTagType.compoundTag())
+                .add(LinCompoundTag.builder().putString("Name", STONE).build())
+                .build())
+            .put("blocks", LinListTag.builder(LinTagType.compoundTag())
+                .add(LinCompoundTag.builder().put("pos", ints(0, 0, 0)).build())
+                .build())
+            .build();
+        assertThrows(IOException.class, () -> read(gzipNbt(noState)));
+
+        LinCompoundTag noName = noState.toBuilder()
+            .put("palette", LinListTag.builder(LinTagType.compoundTag())
+                .add(LinCompoundTag.builder().putInt("Name", 3).build())
+                .build())
+            .put("blocks", LinListTag.builder(LinTagType.compoundTag()).build())
+            .build();
+        assertThrows(IOException.class, () -> read(gzipNbt(noName)));
+    }
+
+    @Test
+    @DisplayName("skips entities with non-finite positions")
+    void skipsNonFiniteEntities() throws Exception {
+        LinCompoundTag structure = LinCompoundTag.builder()
+            .put("size", ints(1, 1, 1))
+            .put("palette", LinListTag.builder(LinTagType.compoundTag())
+                .add(LinCompoundTag.builder().putString("Name", STONE).build())
+                .build())
+            .put("blocks", LinListTag.builder(LinTagType.compoundTag()).build())
+            .put("entities", LinListTag.builder(LinTagType.compoundTag())
+                .add(LinCompoundTag.builder()
+                    .put("pos", LinListTag.builder(LinTagType.doubleTag())
+                        .add(LinDoubleTag.of(Double.NaN)).add(LinDoubleTag.of(0)).add(LinDoubleTag.of(0))
+                        .build())
+                    .put("nbt", LinCompoundTag.builder().putString("id", PIG).build())
+                    .build())
+                .build())
+            .build();
+        assertTrue(read(gzipNbt(structure)).getEntities().isEmpty());
     }
 
     @Test

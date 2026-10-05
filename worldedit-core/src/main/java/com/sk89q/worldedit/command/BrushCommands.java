@@ -58,6 +58,7 @@ import com.sk89q.worldedit.command.tool.brush.SplatterBrush;
 import com.sk89q.worldedit.command.tool.brush.SplineBrush;
 import com.sk89q.worldedit.command.tool.brush.SurfaceSplatterBrush;
 import com.sk89q.worldedit.command.util.AsyncCommandBuilder;
+import com.sk89q.worldedit.command.util.CommandHelper;
 import com.sk89q.worldedit.command.util.CommandPermissions;
 import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.command.util.CreatureButcher;
@@ -93,6 +94,7 @@ import com.sk89q.worldedit.util.HandSide;
 import com.sk89q.worldedit.util.asset.AssetLoadTask;
 import com.sk89q.worldedit.util.asset.AssetLoader;
 import com.sk89q.worldedit.util.asset.holder.ImageHeightmap;
+import com.sk89q.worldedit.util.auth.AuthorizationException;
 import com.sk89q.worldedit.util.formatting.text.Component;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
@@ -116,6 +118,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -952,13 +956,18 @@ public class BrushCommands {
                              @Arg(desc = "The commands to run", variable = true)
                                  List<String> commands) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(size);
-        CommandBrush brush;
-        try {
-            brush = new CommandBrush(String.join(" ", commands));
-        } catch (IllegalArgumentException _) {
+        String joined = String.join(" ", commands);
+        int count = CommandBrush.parseCommands(joined).size();
+        if (count == 0) {
             player.printError(TranslatableComponent.of("worldedit.brush.command.empty"));
             return;
         }
+        if (count > CommandBrush.MAX_COMMANDS) {
+            player.printError(TranslatableComponent.of("worldedit.brush.command.too-many",
+                TextComponent.of(count), TextComponent.of(CommandBrush.MAX_COMMANDS)));
+            return;
+        }
+        CommandBrush brush = new CommandBrush(joined);
 
         equip(player, session, brush, "worldedit.brush.command", null, size);
 
@@ -1006,6 +1015,10 @@ public class BrushCommands {
                 player.printError(TranslatableComponent.of("worldedit.brush.populateschem.not-found", TextComponent.of(name)));
                 return;
             }
+        }
+        if (!files.isEmpty() && !CommandHelper.canLoadSchematics(player)) {
+            // Pasting a file is loading it: don't let the brush bypass the load permission
+            throw new AuthorizationException();
         }
         int count = clipboards.size() + files.size();
         if (count == 0) {
@@ -1059,15 +1072,22 @@ public class BrushCommands {
             return false;
         }
         Path root = worldEdit.getSchematicsManager().getRoot().toAbsolutePath().normalize();
-        Path folder = root.resolve(name).normalize();
+        Path folder;
+        try {
+            folder = root.resolve(name).normalize();
+        } catch (InvalidPathException _) {
+            throw new FilenameResolutionException(name, TranslatableComponent.of("worldedit.error.file-resolution.resolve-failed"));
+        }
+        boolean allowSymlinks = worldEdit.getConfiguration().allowSymlinks;
         if (folder.startsWith(root) && Files.isDirectory(folder)) {
             try {
-                if (!folder.toRealPath().startsWith(root.toRealPath()) && !worldEdit.getConfiguration().allowSymlinks) {
+                if (!folder.toRealPath().startsWith(root.toRealPath()) && !allowSymlinks) {
                     throw new FilenameResolutionException(name, TranslatableComponent.of("worldedit.error.file-resolution.outside-root"));
                 }
                 Set<String> extensions = Set.of(ClipboardFormats.getFileExtensionArray());
                 try (Stream<Path> stream = Files.list(folder)) {
-                    stream.filter(Files::isRegularFile)
+                    // Symbolic links to files could point outside of the schematics folder
+                    stream.filter(path -> allowSymlinks ? Files.isRegularFile(path) : Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                         .filter(path -> extensions.contains(getExtension(path)))
                         .sorted()
                         .limit(MAX_SCHEMATICS + 1)

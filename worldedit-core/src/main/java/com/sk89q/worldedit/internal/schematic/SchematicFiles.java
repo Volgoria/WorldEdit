@@ -22,6 +22,7 @@ package com.sk89q.worldedit.internal.schematic;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
@@ -74,6 +75,17 @@ public final class SchematicFiles {
         int dot = name.lastIndexOf('.');
         String baseName = dot > 0 ? name.substring(0, dot) : name;
         return new File(file.getParentFile(), baseName + "." + extension);
+    }
+
+    /**
+     * Check whether saving with the given format also writes a {@code .mtl} material
+     * library next to the saved file.
+     *
+     * @param format the format
+     * @return true for the Wavefront OBJ format
+     */
+    public static boolean writesMaterialLibrary(ClipboardFormat format) {
+        return format == BuiltInClipboardFormat.WAVEFRONT_OBJ;
     }
 
     /**

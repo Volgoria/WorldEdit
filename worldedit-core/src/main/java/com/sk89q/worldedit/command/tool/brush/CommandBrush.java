@@ -48,6 +48,17 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class CommandBrush implements PlayerBrush {
 
+    /**
+     * The largest number of commands one brush may run per use.
+     */
+    public static final int MAX_COMMANDS = 16;
+
+    /**
+     * Set while a command brush runs its commands on this thread, so that a command
+     * which (directly or not) uses a command brush again cannot recurse.
+     */
+    private static final ThreadLocal<Boolean> RUNNING = ThreadLocal.withInitial(() -> false);
+
     private final List<String> commands;
     private final BiConsumer<Player, String> dispatcher;
 
@@ -71,6 +82,7 @@ public class CommandBrush implements PlayerBrush {
         checkNotNull(dispatcher);
         this.commands = parseCommands(commands);
         checkArgument(!this.commands.isEmpty(), "at least one command is required");
+        checkArgument(this.commands.size() <= MAX_COMMANDS, "at most " + MAX_COMMANDS + " commands are allowed");
         this.dispatcher = dispatcher;
     }
 
@@ -90,7 +102,7 @@ public class CommandBrush implements PlayerBrush {
      * @param commands the commands
      * @return the parsed commands
      */
-    static List<String> parseCommands(String commands) {
+    public static List<String> parseCommands(String commands) {
         return Arrays.stream(commands.split(";"))
             .map(String::trim)
             .filter(command -> !command.isEmpty() && !command.equals("/"))
@@ -124,9 +136,18 @@ public class CommandBrush implements PlayerBrush {
     @Override
     public void build(Player player, LocalSession session, EditSession editSession, BlockVector3 position,
                       @Nullable Pattern pattern, double size) {
+        if (RUNNING.get()) {
+            // A brush command ended up using a command brush again
+            return;
+        }
         String worldName = player.getWorld().getName();
-        for (String command : commands) {
-            dispatcher.accept(player, expand(command, position, size, worldName, player.getName()));
+        RUNNING.set(true);
+        try {
+            for (String command : commands) {
+                dispatcher.accept(player, expand(command, position, size, worldName, player.getName()));
+            }
+        } finally {
+            RUNNING.set(false);
         }
     }
 

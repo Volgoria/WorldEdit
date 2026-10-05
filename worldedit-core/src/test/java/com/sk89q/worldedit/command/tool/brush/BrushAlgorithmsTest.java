@@ -27,6 +27,7 @@ import com.sk89q.worldedit.entity.Entity;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
+import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.function.mask.BlockTypeMask;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -41,6 +42,7 @@ import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockType;
+import com.sk89q.worldedit.world.entity.EntityType;
 import com.sk89q.worldedit.world.registry.BlockMaterial;
 import com.sk89q.worldedit.world.registry.BlockRegistry;
 import com.sk89q.worldedit.world.registry.Registries;
@@ -62,6 +64,7 @@ import javax.annotation.Nullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -122,6 +125,7 @@ class BrushAlgorithmsTest extends BaseWorldEditTest {
      */
     private static final class TestExtent implements Extent {
         private final Map<BlockVector3, BlockState> blocks = new HashMap<>();
+        private int createdEntities;
 
         @Override
         public BlockVector3 getMinimumPoint() {
@@ -146,6 +150,7 @@ class BrushAlgorithmsTest extends BaseWorldEditTest {
         @Nullable
         @Override
         public Entity createEntity(Location location, BaseEntity entity) {
+            createdEntities++;
             return null;
         }
 
@@ -639,6 +644,22 @@ class BrushAlgorithmsTest extends BaseWorldEditTest {
     }
 
     @Test
+    @DisplayName("schematic population never spawns the entities of the schematics")
+    void populateSkipsEntities() throws Exception {
+        TestExtent extent = flatGround(20);
+        ClipboardHolder schematic = column(3);
+        Clipboard clipboard = schematic.getClipboard();
+        clipboard.createEntity(new Location(clipboard, Vector3.at(100.5, 51, 100.5)),
+            new BaseEntity(new EntityType("minecraft:pig")));
+        assertEquals(1, clipboard.getEntities().size());
+
+        PopulateSchematicBrush.paste(extent, new PopulateSchematicBrush.Placement(BlockVector3.at(3, 1, -2), schematic, 0), true);
+
+        assertEquals(stone, extent.getBlock(BlockVector3.at(3, 1, -2)));
+        assertEquals(0, extent.createdEntities);
+    }
+
+    @Test
     @DisplayName("command brush expands placeholders and runs every command")
     void commandBrushRunsCommands() throws Exception {
         assertEquals(List.of("//set stone", "/up 2"), CommandBrush.parseCommands(" //set stone ; up 2;; "));
@@ -658,5 +679,36 @@ class BrushAlgorithmsTest extends BaseWorldEditTest {
 
         assertEquals(List.of("//sphere stone 3", "//pos1 5,6,7"), ran);
         verifyNoInteractions(editSession);
+    }
+
+    @Test
+    @DisplayName("command brush cannot recurse into itself and runs a bounded number of commands")
+    void commandBrushIsLoopSafe() throws Exception {
+        Player player = mock(Player.class);
+        World world = mock(World.class);
+        when(world.getName()).thenReturn("world");
+        when(player.getWorld()).thenReturn(world);
+        when(player.getName()).thenReturn("Steve");
+        EditSession editSession = mock(EditSession.class);
+        LocalSession session = mock(LocalSession.class);
+
+        List<String> ran = new ArrayList<>();
+        CommandBrush[] self = new CommandBrush[1];
+        // A dispatcher whose command uses the brush again, as a command triggering a tool would
+        self[0] = new CommandBrush("//a; //b", (p, command) -> {
+            ran.add(command);
+            self[0].build(p, session, editSession, BlockVector3.ZERO, null, 1);
+        });
+        self[0].build(player, session, editSession, BlockVector3.ZERO, null, 1);
+        assertEquals(List.of("//a", "//b"), ran);
+
+        // The guard is released afterwards
+        ran.clear();
+        self[0].build(player, session, editSession, BlockVector3.ZERO, null, 1);
+        assertEquals(2, ran.size());
+
+        String tooMany = String.join(";", Collections.nCopies(CommandBrush.MAX_COMMANDS + 1, "//pos1"));
+        assertThrows(IllegalArgumentException.class, () -> new CommandBrush(tooMany, (_, _) -> { }));
+        new CommandBrush(String.join(";", Collections.nCopies(CommandBrush.MAX_COMMANDS, "//pos1")), (_, _) -> { });
     }
 }

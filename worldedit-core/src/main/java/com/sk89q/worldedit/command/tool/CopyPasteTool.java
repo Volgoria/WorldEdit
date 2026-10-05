@@ -83,6 +83,8 @@ public class CopyPasteTool extends BrushTool implements DoubleActionTraceTool {
             BlockArrayClipboard clipboard = new BlockArrayClipboard(region);
             clipboard.setOrigin(origin);
             ForwardExtentCopy copy = new ForwardExtentCopy(editSession, region, clipboard, region.getMinimumPoint());
+            // Like //copy and //paste without -e: entities are neither copied nor pasted
+            copy.setCopyingEntities(false);
             Operations.complete(copy);
             session.setClipboard(new ClipboardHolder(clipboard));
             player.printInfo(TranslatableComponent.of("worldedit.tool.copypaste.copied",
@@ -107,6 +109,7 @@ public class CopyPasteTool extends BrushTool implements DoubleActionTraceTool {
                 Operations.complete(holder.createPaste(editSession)
                     .to(to)
                     .ignoreAirBlocks(ignoreAir)
+                    .copyEntities(false)
                     .build());
                 player.printInfo(TranslatableComponent.of("worldedit.tool.copypaste.pasted", TextComponent.of(to.toString())));
             } catch (WorldEditException e) {
