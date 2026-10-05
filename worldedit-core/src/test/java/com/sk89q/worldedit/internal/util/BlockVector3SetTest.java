@@ -63,7 +63,7 @@ class BlockVector3SetTest {
 
     @ParameterizedTest
     @MethodSource("positions")
-    void yNeighboursAreDistinct(BlockVector3 position) {
+    void neighboursAboveAreDistinct(BlockVector3 position) {
         BlockVector3Set set = new BlockVector3Set();
         set.add(position);
         BlockVector3 above = position.add(0, 1, 0);
