@@ -19,10 +19,15 @@
 
 package com.sk89q.worldedit.bukkit.gui.worldedit;
 
+import com.sk89q.worldedit.IncompleteRegionException;
+import com.sk89q.worldedit.LocalSession;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.bukkit.gui.Button;
 import com.sk89q.worldedit.bukkit.gui.ItemBuilder;
 import com.sk89q.worldedit.bukkit.gui.Menu;
 import com.sk89q.worldedit.bukkit.gui.Text;
+import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.world.World;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -49,10 +54,22 @@ final class PresetMenu extends Menu {
         this.gui = gui;
     }
 
-    private static Presets.Context context(PlayerGuiState state, Player player) {
+    private Presets.Context context(PlayerGuiState state, Player player) {
         Location location = player.getLocation();
-        return Presets.Context.of(state.getPattern(), state.getPresetValue(),
+        Presets.Context context = Presets.Context.of(state.getPattern(), state.getPresetValue(),
             location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        // Gradients get explicit levels so they keep working without a selection
+        LocalSession session = gui.session(player);
+        World world = BukkitAdapter.adapt(player.getWorld());
+        if (session.isSelectionDefined(world)) {
+            try {
+                Region selection = session.getSelection(world);
+                return context.withGradientSpan(selection.getMinimumPoint().y(), selection.getMaximumPoint().y());
+            } catch (IncompleteRegionException _) {
+                // keep the span around the player
+            }
+        }
+        return context;
     }
 
     @Override

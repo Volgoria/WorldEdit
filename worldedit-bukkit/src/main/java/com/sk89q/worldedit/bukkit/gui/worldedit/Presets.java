@@ -46,12 +46,40 @@ public final class Presets {
      * @param x the player's block x coordinate
      * @param y the player's block y coordinate
      * @param z the player's block z coordinate
+     * @param fromY the lowest level of a vertical gradient
+     * @param toY the highest level of a vertical gradient
      */
-    public record Context(List<String> blocks, int value, int x, int y, int z) {
+    public record Context(List<String> blocks, int value, int x, int y, int z, int fromY, int toY) {
 
         public Context {
             blocks = List.copyOf(blocks);
             checkArgument(value >= 1, "value must be positive");
+        }
+
+        /**
+         * Create a context whose vertical gradients span {@code value}
+         * blocks below to {@code value} blocks above the player.
+         *
+         * @param blocks the picked blocks
+         * @param value the preset parameter
+         * @param x the player's block x coordinate
+         * @param y the player's block y coordinate
+         * @param z the player's block z coordinate
+         */
+        public Context(List<String> blocks, int value, int x, int y, int z) {
+            this(blocks, value, x, y, z, y - value, y + value);
+        }
+
+        /**
+         * Get a copy whose vertical gradients span the given levels, e.g.
+         * those of the player's selection.
+         *
+         * @param fromY the lowest level
+         * @param toY the highest level
+         * @return the context
+         */
+        public Context withGradientSpan(int fromY, int toY) {
+            return new Context(blocks, value, x, y, z, fromY, toY);
         }
 
         /**
@@ -81,7 +109,9 @@ public final class Presets {
                 "x", Integer.toString(x),
                 "y", Integer.toString(y),
                 "y-1", Integer.toString(y - 1),
-                "z", Integer.toString(z)
+                "z", Integer.toString(z),
+                "from-y", Integer.toString(fromY),
+                "to-y", Integer.toString(toY)
             );
             return CommandTemplate.substitute(template, values::get);
         }
@@ -101,8 +131,9 @@ public final class Presets {
      * Pattern presets.
      */
     public enum PatternPreset {
-        GRADIENT("Gradient", "Blends your blocks from the bottom to the top of the selection",
-            "#gradient[{blocks}]", 2, "WHITE_GLAZED_TERRACOTTA"),
+        GRADIENT("Gradient", "Blends your blocks from the bottom to the top of your selection "
+            + "(without one: from value blocks below you to value blocks above you)",
+            "#gradient[{blocks}][{from-y}][{to-y}]", 2, "WHITE_GLAZED_TERRACOTTA"),
         LAYERS("Horizontal stripes", "Alternates your blocks in layers (thickness = value)",
             "#stripes[y][{blocks}][{value}]", 2, "SANDSTONE"),
         STRIPES("Vertical stripes", "Alternates your blocks along X (thickness = value)",

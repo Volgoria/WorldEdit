@@ -42,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class NewPatternParsersTest extends ParserTestBase {
 
@@ -88,11 +89,42 @@ class NewPatternParsersTest extends ParserTestBase {
     }
 
     @Test
+    void gradientFromLevelEndsAtTopOfSelection() throws InputParseException {
+        World world = mock(World.class);
+        when(world.getMaxY()).thenReturn(319);
+        LocalSession session = new LocalSession();
+        session.setRegionSelector(world, new CuboidRegionSelector(world, BlockVector3.at(0, 70, 0), BlockVector3.at(5, 40, 5)));
+        ParserContext context = newContext();
+        context.setSession(session);
+        context.setWorld(world);
+        GradientPattern pattern = assertInstanceOf(
+            GradientPattern.class, factory.parseFromInput("#gradient[stone,dirt][50]", context)
+        );
+        assertEquals(50, pattern.getFromY());
+        assertEquals(70, pattern.getToY());
+    }
+
+    @Test
+    void gradientFromLevelEndsAtTopOfWorldWithoutSelection() throws InputParseException {
+        World world = mock(World.class);
+        when(world.getMaxY()).thenReturn(319);
+        ParserContext context = newContext();
+        context.setSession(new LocalSession());
+        context.setWorld(world);
+        GradientPattern pattern = assertInstanceOf(
+            GradientPattern.class, factory.parseFromInput("#gradient[stone,dirt][64]", context)
+        );
+        assertEquals(64, pattern.getFromY());
+        assertEquals(319, pattern.getToY());
+    }
+
+    @Test
     void gradientErrors() {
         // no selection available
         assertThrows(InputParseException.class, () -> parse("#gradient[stone,dirt]"));
-        // only one level
+        // only one level and no world to find the top of
         assertThrows(InputParseException.class, () -> parse("#gradient[stone,dirt][5]"));
+        assertThrows(InputParseException.class, () -> parse("#gradient[stone,dirt][a]"));
         assertThrows(InputParseException.class, () -> parse("#gradient[stone,dirt][a][5]"));
         assertThrows(InputParseException.class, () -> parse("#gradient[stone,,dirt][0][5]"));
         assertThrows(InputParseException.class, () -> parse("#gradient[notablock][0][5]"));

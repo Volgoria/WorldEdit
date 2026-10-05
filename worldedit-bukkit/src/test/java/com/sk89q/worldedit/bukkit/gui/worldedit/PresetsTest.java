@@ -41,7 +41,11 @@ class PresetsTest {
 
     @Test
     void patternPresets() {
-        assertEquals("#gradient[stone,andesite,diorite]", Presets.PatternPreset.GRADIENT.build(THREE));
+        // explicit levels, so the gradient does not need a selection: value blocks around the player
+        assertEquals("#gradient[stone,andesite,diorite][-10][0]", Presets.PatternPreset.GRADIENT.build(THREE));
+        // or the span of the player's selection
+        assertEquals("#gradient[stone,andesite,diorite][40][70]",
+            Presets.PatternPreset.GRADIENT.build(THREE.withGradientSpan(40, 70)));
         assertEquals("#stripes[y][stone,andesite][3]", Presets.PatternPreset.LAYERS.build(TWO));
         assertEquals("#stripes[x][stone,andesite][3]", Presets.PatternPreset.STRIPES.build(TWO));
         assertEquals("#stripes[xz][stone,andesite][3]", Presets.PatternPreset.DIAGONAL.build(TWO));

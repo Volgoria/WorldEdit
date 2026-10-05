@@ -41,6 +41,7 @@ et masques **sans espace**, ou entourez-les de guillemets.
 
 ```
 #gradient[<pattern>,<pattern>,...]
+#gradient[<pattern>,<pattern>,...][<yDébut>]
 #gradient[<pattern>,<pattern>,...][<yDébut>][<yFin>]
 ```
 
@@ -51,10 +52,12 @@ la plage, le pattern de l'extrémité la plus proche est utilisé.
 
 - Avec un seul argument, la plage est celle de **votre sélection actuelle** (du bloc le plus bas au
   plus haut) : il faut donc une sélection au moment où le pattern est lu.
-- Il faut donner **soit 1, soit 3** arguments (2 arguments = erreur).
+- Avec `yDébut` seul, le dégradé va de `yDébut` jusqu'au **haut de votre sélection** si vous en
+  avez une dans ce monde, sinon jusqu'au **haut du monde**.
 
 ```
 //set #gradient[stone,andesite,diorite]
+//set #gradient[stone,andesite,diorite][64]
 //sphere #gradient[deepslate,stone,cobblestone][40][80] 20
 ```
 

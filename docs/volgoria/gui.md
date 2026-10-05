@@ -285,7 +285,7 @@ mélange est insuffisant (shift-cliquez des blocs dans le sélecteur).
 
 | Preset | Syntaxe générée | Blocs requis |
 |--------|-----------------|--------------|
-| Gradient | `#gradient[<blocs>]` (nécessite une sélection à l'utilisation) | 2 |
+| Gradient | `#gradient[<blocs>][<yMin>][<yMax>]` : bas et haut de votre sélection, ou sans sélection de `<valeur>` blocs sous vous à `<valeur>` blocs au-dessus (niveaux figés à l'ouverture du menu) | 2 |
 | Horizontal stripes | `#stripes[y][<blocs>][<valeur>]` | 2 |
 | Vertical stripes | `#stripes[x][<blocs>][<valeur>]` | 2 |
 | Diagonal stripes | `#stripes[xz][<blocs>][<valeur>]` | 2 |

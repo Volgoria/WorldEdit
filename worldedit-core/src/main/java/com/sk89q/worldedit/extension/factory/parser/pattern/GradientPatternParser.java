@@ -19,6 +19,8 @@
 
 package com.sk89q.worldedit.extension.factory.parser.pattern;
 
+import com.sk89q.worldedit.IncompleteRegionException;
+import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.factory.parser.BracketArgumentParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
@@ -26,15 +28,19 @@ import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.pattern.GradientPattern;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.world.World;
 
 import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * Parses {@code #gradient[<patterns>]} and {@code #gradient[<patterns>][<fromY>][<toY>]}.
+ * Parses {@code #gradient[<patterns>]}, {@code #gradient[<patterns>][<fromY>]}
+ * and {@code #gradient[<patterns>][<fromY>][<toY>]}.
  *
  * <p>Without explicit Y levels, the gradient spans the current selection,
- * from its lowest to its highest block.</p>
+ * from its lowest to its highest block. With only {@code fromY}, it ends at
+ * the top of the current selection, or at the top of the world when there is
+ * no selection.</p>
  */
 public class GradientPatternParser extends BracketArgumentParser<Pattern> {
 
@@ -44,7 +50,8 @@ public class GradientPatternParser extends BracketArgumentParser<Pattern> {
 
     @Override
     public String getUsage() {
-        return "#gradient[<pattern>,<pattern>,...][fromY][toY]";
+        return "#gradient[<pattern>,<pattern>,...][fromY][toY] (no Y: the selection; fromY only: up to the top of "
+            + "the selection, or of the world without one)";
     }
 
     @Override
@@ -55,6 +62,9 @@ public class GradientPatternParser extends BracketArgumentParser<Pattern> {
         if (arguments.size() == 3) {
             fromY = parseInt(arguments.get(1));
             toY = parseInt(arguments.get(2));
+        } else if (arguments.size() == 2) {
+            fromY = parseInt(arguments.get(1));
+            toY = topOfSelectionOrWorld(context);
         } else if (arguments.size() == 1) {
             Region selection = context.requireSelection();
             fromY = selection.getMinimumPoint().y();
@@ -63,6 +73,19 @@ public class GradientPatternParser extends BracketArgumentParser<Pattern> {
             throw wrongArgumentCount();
         }
         return new GradientPattern(patterns, fromY, toY);
+    }
+
+    private static int topOfSelectionOrWorld(ParserContext context) throws InputParseException {
+        World world = context.requireWorld();
+        LocalSession session = context.getSession();
+        if (session != null && session.isSelectionDefined(world)) {
+            try {
+                return session.getSelection(world).getMaximumPoint().y();
+            } catch (IncompleteRegionException _) {
+                // fall back to the top of the world
+            }
+        }
+        return world.getMaxY();
     }
 
     @Override
