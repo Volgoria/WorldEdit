@@ -203,8 +203,11 @@ class CLIWorldEditTest {
             """
             cli selectworld
             //set minecraft:stone
+            //set minecraft:air
+            //set minecraft:stone
             """);
 
+        // Repeated save failures are only reported once, but still fail the run
         assertEquals(CLIWorldEdit.EXIT_ERROR,
             launch("-f", schematic.toString(), "-s", script.toString(), "-n"));
 

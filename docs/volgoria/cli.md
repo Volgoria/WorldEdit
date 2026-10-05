@@ -32,13 +32,16 @@ java -jar worldedit-cli.jar [options]
   est détecté d'après le **contenu** du fichier.
 - Le fichier est réécrit dans **son propre format**. Les formats en lecture seule (MCEdit
   `.schematic`, Sponge v1) ne peuvent pas être réenregistrés : la CLI l'annonce **dès le
-  chargement**, puis chaque tentative d'enregistrement affiche une erreur (« Your changes are NOT
-  saved »), le fichier d'origine reste intact et la CLI se termine avec le code **1**. Les commandes
+  chargement**, puis le premier échec d'enregistrement affiche une erreur (« Your changes are NOT
+  saved ») **une seule fois** ; les échecs suivants sont silencieux, avec un court rappel à la
+  sortie. Le fichier d'origine reste intact et la CLI se termine avec le code **1**. Les commandes
   qui ne modifient rien (inspection, `//count`...) restent utilisables. Pour modifier un tel fichier,
   convertissez-le d'abord en `.schem` (v2 ou v3) ou `.nbt` en jeu.
 - Les fichiers `level.dat` (mondes) ne sont **pas encore** pris en charge.
 - Les modifications sont **enregistrées dans le fichier** après chaque commande réussie et à la
   sortie. L'écriture passe par un fichier temporaire : un échec ne laisse jamais de schematic tronquée.
+  Une erreur d'enregistrement n'est affichée en entier qu'une fois (jusqu'au prochain enregistrement
+  réussi), puis rappelée brièvement à la sortie si elle persiste.
 
 ## Utilisation
 

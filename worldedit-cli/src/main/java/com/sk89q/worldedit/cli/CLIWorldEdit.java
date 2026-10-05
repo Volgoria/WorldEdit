@@ -90,6 +90,7 @@ public class CLIWorldEdit {
 
     private Actor commandSender;
     private int saveFailures;
+    private final SaveFailureReporter saveFailureReporter = new SaveFailureReporter();
 
     private FileRegistries fileRegistries;
 
@@ -293,17 +294,40 @@ public class CLIWorldEdit {
      * @param force whether to save unmodified worlds too
      */
     public void saveAllWorlds(boolean force) {
+        saveAllWorlds(force, false);
+    }
+
+    /**
+     * Save every modified world (or every world, if forced).
+     *
+     * <p>Failures are counted, see {@link #getSaveFailures()}. The full error
+     * is shown the first time a world fails to save; repeated failures of the
+     * same world are only logged at debug level, with a short reminder on the
+     * last save before exiting.</p>
+     *
+     * @param force whether to save unmodified worlds too
+     * @param exiting whether this is the last save before the CLI exits
+     */
+    private void saveAllWorlds(boolean force, boolean exiting) {
         for (World world : platform.getWorlds()) {
             if (!(world instanceof CLIWorld cliWorld)) {
                 continue;
             }
             try {
                 cliWorld.save(force);
+                saveFailureReporter.saved(world.getName());
             } catch (IOException e) {
                 saveFailures++;
                 LOGGER.debug("Failed to save " + world.getName(), e);
-                commandSender.printError(TranslatableComponent.of("worldedit.cli.save-failed",
-                    TextComponent.of(world.getName()), TextComponent.of(String.valueOf(e.getMessage()))));
+                switch (saveFailureReporter.failed(world.getName(), exiting)) {
+                    case FULL -> commandSender.printError(TranslatableComponent.of("worldedit.cli.save-failed",
+                        TextComponent.of(world.getName()), TextComponent.of(String.valueOf(e.getMessage()))));
+                    case REMINDER -> commandSender.printError(TranslatableComponent.of(
+                        "worldedit.cli.save-failed-reminder", TextComponent.of(world.getName())));
+                    default -> {
+                        // Already reported
+                    }
+                }
             }
         }
     }
@@ -397,7 +421,7 @@ public class CLIWorldEdit {
             }
             return unknownCommands;
         } finally {
-            saveAllWorlds(false);
+            saveAllWorlds(false, true);
         }
     }
 
