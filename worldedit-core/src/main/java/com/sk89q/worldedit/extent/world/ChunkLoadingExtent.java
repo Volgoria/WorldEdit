@@ -57,16 +57,6 @@ public class ChunkLoadingExtent extends AbstractDelegateExtent {
         this.world = world;
     }
 
-    @Override
-    public BlockState getBlock(BlockVector3 position) {
-        return extent.getBlock(position);
-    }
-
-    @Override
-    public BaseBlock getFullBlock(BlockVector3 position) {
-        return extent.getFullBlock(position);
-    }
-
     /**
      * Create a new instance with chunk loading enabled.
      *
@@ -75,6 +65,16 @@ public class ChunkLoadingExtent extends AbstractDelegateExtent {
      */
     public ChunkLoadingExtent(Extent extent, World world) {
         this(extent, world, true);
+    }
+
+    @Override
+    public BlockState getBlock(BlockVector3 position) {
+        return extent.getBlock(position);
+    }
+
+    @Override
+    public BaseBlock getFullBlock(BlockVector3 position) {
+        return extent.getFullBlock(position);
     }
 
     @Override

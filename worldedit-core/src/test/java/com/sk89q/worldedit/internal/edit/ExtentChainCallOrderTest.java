@@ -385,7 +385,7 @@ class ExtentChainCallOrderTest extends BaseWorldEditTest {
     }
 
     private static String trace(Script script) throws Exception {
-        return trace((builder, log) -> {
+        return trace((_, _) -> {
         }, script);
     }
 
@@ -608,7 +608,7 @@ class ExtentChainCallOrderTest extends BaseWorldEditTest {
 
     @Test
     void changeLimit() throws Exception {
-        check("changeLimit", trace((builder, log) -> builder.maxBlocks(2), (session, log) -> {
+        check("changeLimit", trace((builder, _) -> builder.maxBlocks(2), (session, log) -> {
             set(session, log, P1, stone);
             set(session, log, P2, stone);
             try {
@@ -634,7 +634,7 @@ class ExtentChainCallOrderTest extends BaseWorldEditTest {
     void tracing() throws Exception {
         Actor actor = mock(Actor.class);
         when(actor.getName()).thenReturn("tracer");
-        String trace = trace((builder, log) -> builder.actor(actor).tracing(true), (session, log) -> {
+        String trace = trace((builder, _) -> builder.actor(actor).tracing(true), (session, log) -> {
             session.setMask(pos -> !pos.equals(P2));
             standardEdit(session, log);
         });
