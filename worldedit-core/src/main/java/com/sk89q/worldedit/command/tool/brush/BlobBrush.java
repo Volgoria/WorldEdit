@@ -104,9 +104,7 @@ public class BlobBrush implements Brush {
      * @throws MaxChangedBlocksException if the maximum block change limit is exceeded
      */
     public void apply(Extent extent, BlockVector3 position, Pattern pattern, double size) throws MaxChangedBlocksException {
-        if (pattern == null) {
-            pattern = BlockTypes.COBBLESTONE.getDefaultState();
-        }
+        pattern = BrushHelper.orDefault(pattern, BlockTypes.COBBLESTONE);
         PerlinNoise noise = new PerlinNoise();
         noise.setSeed(random.nextInt());
 

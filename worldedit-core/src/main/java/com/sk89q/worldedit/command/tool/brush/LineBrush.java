@@ -71,9 +71,7 @@ public class LineBrush implements Brush {
             return;
         }
         anchor = chain ? position : null;
-        if (pattern == null) {
-            pattern = BlockTypes.COBBLESTONE.getDefaultState();
-        }
+        pattern = BrushHelper.orDefault(pattern, BlockTypes.COBBLESTONE);
         editSession.drawLine(pattern, start, position, size, !hollow);
     }
 }

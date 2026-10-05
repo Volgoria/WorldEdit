@@ -73,10 +73,7 @@ public class OverlayBrush implements Brush {
      * @throws MaxChangedBlocksException if the maximum block change limit is exceeded
      */
     public void apply(Extent extent, BlockVector3 position, Pattern pattern, double size) throws MaxChangedBlocksException {
-        if (pattern == null) {
-            pattern = BlockTypes.GRASS_BLOCK.getDefaultState();
-        }
-        BrushHelper.setBlocks(extent, findPositions(extent, position, size), pattern);
+        BrushHelper.setBlocks(extent, findPositions(extent, position, size), BrushHelper.orDefault(pattern, BlockTypes.GRASS_BLOCK));
     }
 
     /**
@@ -89,30 +86,8 @@ public class OverlayBrush implements Brush {
      */
     public List<BlockVector3> findPositions(Extent extent, BlockVector3 position, double size) {
         List<BlockVector3> positions = new ArrayList<>();
-        int radius = (int) Math.floor(size);
-        double radiusSq = (size + 0.5) * (size + 0.5);
-        int minY = Math.max(extent.getMinimumPoint().y(), position.y() - radius);
-        int maxY = Math.min(extent.getMaximumPoint().y(), position.y() + radius);
-
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (dx * dx + dz * dz > radiusSq) {
-                    continue;
-                }
-                int x = position.x() + dx;
-                int z = position.z() + dz;
-                if (!BrushHelper.isAir(extent, BlockVector3.at(x, maxY, z))) {
-                    // The top of this column is buried; its surface is out of range
-                    continue;
-                }
-                for (int y = maxY - 1; y >= minY; y--) {
-                    if (BrushHelper.isAir(extent, BlockVector3.at(x, y, z))) {
-                        continue;
-                    }
-                    addColumn(extent, positions, x, y, z);
-                    break;
-                }
-            }
+        for (BlockVector3 surface : BrushHelper.surfaceBlocks(extent, position, size)) {
+            addColumn(extent, positions, surface.x(), surface.y(), surface.z());
         }
         return positions;
     }

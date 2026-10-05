@@ -21,15 +21,22 @@ package com.sk89q.worldedit.command.tool.brush;
 
 import com.sk89q.worldedit.BaseWorldEditTest;
 import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.entity.Entity;
+import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extent.Extent;
+import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.function.mask.BlockTypeMask;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.math.Vector3;
+import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
+import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
+import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
@@ -41,6 +48,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -401,5 +409,254 @@ class BrushAlgorithmsTest extends BaseWorldEditTest {
         verify(editSession).drawLine(stone, first, second, 2, false);
         verify(editSession).drawLine(stone, second, third, 2, false);
         assertEquals(third, brush.getAnchor());
+    }
+
+    @Test
+    @DisplayName("spline brush builds a curve through the clicked points")
+    void splineBuildsThroughPoints() throws Exception {
+        EditSession editSession = mock(EditSession.class);
+        SplineBrush brush = new SplineBrush(false, 0);
+        BlockVector3 first = BlockVector3.at(0, 0, 0);
+        BlockVector3 second = BlockVector3.at(10, 5, 0);
+        BlockVector3 third = BlockVector3.at(10, 5, 10);
+
+        brush.build(editSession, first, stone, 2);
+        brush.build(editSession, second, stone, 2);
+        brush.build(editSession, third, stone, 2);
+        verifyNoInteractions(editSession);
+        assertEquals(List.of(first, second, third), brush.getPoints());
+
+        // Clicking next to the last point finishes the curve
+        brush.build(editSession, third.add(1, 0, 0), stone, 2);
+        verify(editSession).drawSpline(stone, List.of(first, second, third), 0, 0, 0, 10, 2, true);
+        assertTrue(brush.getPoints().isEmpty());
+    }
+
+    @Test
+    @DisplayName("spline brush resets a lone point and caps the number of points")
+    void splineResetsAndCaps() throws Exception {
+        EditSession editSession = mock(EditSession.class);
+        SplineBrush brush = new SplineBrush(true, 0.5);
+        BlockVector3 point = BlockVector3.at(3, 3, 3);
+        brush.build(editSession, point, stone, 1);
+        brush.build(editSession, point, stone, 1);
+        assertTrue(brush.getPoints().isEmpty());
+
+        for (int i = 0; i < SplineBrush.MAX_POINTS + 5; i++) {
+            brush.build(editSession, BlockVector3.at(i * 3, 0, 0), stone, 1);
+        }
+        assertEquals(SplineBrush.MAX_POINTS, brush.getPoints().size());
+        assertEquals(BlockVector3.at(15, 0, 0), brush.getPoints().getFirst());
+        verifyNoInteractions(editSession);
+    }
+
+    @Test
+    @DisplayName("copy-paste brush copies a sphere and pastes it elsewhere")
+    void copyPasteCopiesAndPastes() throws Exception {
+        TestExtent extent = new TestExtent();
+        extent.put(BlockVector3.at(0, 0, 0), stone);
+        extent.put(BlockVector3.at(1, 0, 0), grass);
+        extent.put(BlockVector3.at(0, 2, 0), water);
+        // Outside the copied sphere
+        extent.put(BlockVector3.at(3, 3, 0), stone);
+
+        CopyPasteBrush brush = new CopyPasteBrush(true, false);
+        assertEquals(0, brush.apply(extent, BlockVector3.at(0, 0, 0), 2));
+        assertTrue(brush.hasCopy());
+        assertEquals(3, brush.apply(extent, BlockVector3.at(20, 0, 20), 2));
+        assertTrue(!brush.hasCopy());
+
+        assertEquals(stone, extent.getBlock(BlockVector3.at(20, 0, 20)));
+        assertEquals(grass, extent.getBlock(BlockVector3.at(21, 0, 20)));
+        assertEquals(water, extent.getBlock(BlockVector3.at(20, 2, 20)));
+        assertEquals(air, extent.getBlock(BlockVector3.at(23, 3, 20)));
+    }
+
+    @Test
+    @DisplayName("copy-paste brush can keep its copy and paste air")
+    void copyPasteKeepsCopy() throws Exception {
+        TestExtent extent = new TestExtent();
+        extent.put(BlockVector3.at(0, 0, 0), stone);
+        extent.fill(10, 0, 0, 12, 0, 0, grass);
+
+        CopyPasteBrush brush = new CopyPasteBrush(false, true);
+        brush.apply(extent, BlockVector3.at(0, 0, 0), 1);
+        brush.apply(extent, BlockVector3.at(11, 0, 0), 1);
+        assertTrue(brush.hasCopy());
+        brush.apply(extent, BlockVector3.at(30, 0, 0), 1);
+
+        assertEquals(stone, extent.getBlock(BlockVector3.at(11, 0, 0)));
+        // Air was pasted over the grass next to the center
+        assertEquals(air, extent.getBlock(BlockVector3.at(10, 0, 0)));
+        assertEquals(air, extent.getBlock(BlockVector3.at(12, 0, 0)));
+        assertEquals(stone, extent.getBlock(BlockVector3.at(30, 0, 0)));
+    }
+
+    @Test
+    @DisplayName("shatter cracks solid blocks along fragment borders")
+    void shatterCracksAlongBorders() throws Exception {
+        TestExtent extent = new TestExtent();
+        extent.fill(-10, -10, -10, 10, 10, 10, stone);
+        BlockVector3 center = BlockVector3.at(0, 0, 0);
+        double radius = 6;
+        ShatterBrush brush = new ShatterBrush(2, 1, new Random(3));
+        List<Vector3> seeds = brush.createSeeds(center, radius);
+        assertEquals(2, seeds.size());
+        for (Vector3 seed : seeds) {
+            assertTrue(seed.distance(center.toVector3()) <= radius);
+        }
+
+        Set<BlockVector3> cracks = new HashSet<>(brush.findCracks(extent, center, radius, seeds));
+        assertTrue(!cracks.isEmpty());
+        for (BlockVector3 pos : BrushHelper.ballPositions(center, radius)) {
+            double d1 = seeds.get(0).distance(pos.toVector3());
+            double d2 = seeds.get(1).distance(pos.toVector3());
+            assertEquals(Math.abs(d1 - d2) < 1, cracks.contains(pos), "Unexpected crack state at " + pos);
+        }
+    }
+
+    @Test
+    @DisplayName("shatter leaves air and blocks outside the sphere alone")
+    void shatterOnlyAffectsSolidBlocksInSphere() throws Exception {
+        TestExtent extent = flatGround(12);
+        new ShatterBrush(6, 1.5, new Random(5)).apply(extent, BlockVector3.at(0, 0, 0), water, 5);
+
+        Set<BlockVector3> cracked = extent.positionsOf(water);
+        assertTrue(!cracked.isEmpty());
+        for (BlockVector3 pos : cracked) {
+            assertTrue(pos.y() <= 0, "Air was cracked at " + pos);
+            assertTrue(pos.toVector3().length() <= 5.5, "Crack outside of the sphere at " + pos);
+        }
+    }
+
+    @Test
+    @DisplayName("surface splatter paints patches on the surface only")
+    void surfaceSplatterPaintsSurface() throws Exception {
+        TestExtent extent = flatGround(12);
+        BlockVector3 center = BlockVector3.at(0, 0, 0);
+        SurfaceSplatterBrush brush = new SurfaceSplatterBrush(4, 3, new Random(11));
+        brush.apply(extent, center, grass, 8);
+
+        Set<BlockVector3> painted = extent.positionsOf(grass);
+        assertTrue(!painted.isEmpty());
+        assertTrue(painted.size() < circleColumns(8));
+        for (BlockVector3 pos : painted) {
+            assertEquals(0, pos.y(), "Painted below the surface at " + pos);
+            assertTrue(pos.x() * pos.x() + pos.z() * pos.z() <= 8.5 * 8.5, "Painted outside the brush at " + pos);
+        }
+
+        TestExtent same = flatGround(12);
+        new SurfaceSplatterBrush(4, 3, new Random(11)).apply(same, center, grass, 8);
+        assertEquals(painted, same.positionsOf(grass));
+    }
+
+    @Test
+    @DisplayName("layer brush layers blocks by depth below the surface")
+    void layerBySurfaceDepth() throws Exception {
+        TestExtent extent = flatGround(20);
+        new LayerBrush(List.of(grass, water), false).apply(extent, BlockVector3.at(0, 0, 0), 4);
+
+        assertEquals(grass, extent.getBlock(BlockVector3.at(0, 0, 0)));
+        assertEquals(water, extent.getBlock(BlockVector3.at(0, -1, 0)));
+        assertEquals(stone, extent.getBlock(BlockVector3.at(0, -2, 0)));
+        assertEquals(air, extent.getBlock(BlockVector3.at(0, 1, 0)));
+        // Outside of the sphere
+        assertEquals(stone, extent.getBlock(BlockVector3.at(6, 0, 0)));
+        for (BlockVector3 pos : extent.positionsOf(grass)) {
+            assertEquals(0, pos.y());
+        }
+        for (BlockVector3 pos : extent.positionsOf(water)) {
+            assertEquals(-1, pos.y());
+        }
+    }
+
+    @Test
+    @DisplayName("layer brush in concentric mode builds layered spheres")
+    void layerConcentric() throws Exception {
+        TestExtent extent = new TestExtent();
+        LayerBrush brush = new LayerBrush(List.of(stone, water, grass), true);
+        brush.apply(extent, BlockVector3.at(0, 0, 0), 4);
+
+        assertEquals(stone, extent.getBlock(BlockVector3.at(0, 0, 0)));
+        assertEquals(stone, extent.getBlock(BlockVector3.at(1, 0, 0)));
+        assertEquals(water, extent.getBlock(BlockVector3.at(0, 2, 0)));
+        assertEquals(grass, extent.getBlock(BlockVector3.at(0, 0, 4)));
+        assertEquals(air, extent.getBlock(BlockVector3.at(0, 0, 5)));
+        assertEquals(BrushHelper.ballPositions(BlockVector3.at(0, 0, 0), 4).size(),
+            extent.positionsOf(stone).size() + extent.positionsOf(water).size() + extent.positionsOf(grass).size());
+    }
+
+    private static ClipboardHolder column(int height) {
+        BlockArrayClipboard clipboard = new BlockArrayClipboard(
+            new CuboidRegion(BlockVector3.at(100, 50, 100), BlockVector3.at(100, 50 + height - 1, 100)));
+        try {
+            for (int y = 0; y < height; y++) {
+                clipboard.setBlock(BlockVector3.at(100, 50 + y, 100), stone);
+            }
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        clipboard.setOrigin(BlockVector3.at(90, 40, 90));
+        return new ClipboardHolder(clipboard);
+    }
+
+    @Test
+    @DisplayName("schematic population plans spaced placements on the surface")
+    void populatePlansSpacedPlacements() {
+        TestExtent extent = flatGround(20);
+        ClipboardHolder schematic = column(2);
+        PopulateSchematicBrush brush = new PopulateSchematicBrush(List.of(schematic), 100, 4, true, true, new Random(9));
+        List<PopulateSchematicBrush.Placement> placements = brush.findPlacements(extent, BlockVector3.at(0, 0, 0), 10);
+
+        assertTrue(placements.size() > 3);
+        for (PopulateSchematicBrush.Placement placement : placements) {
+            assertEquals(1, placement.position().y());
+            assertTrue(placement.rotation() % 90 == 0 && placement.rotation() >= 0 && placement.rotation() < 360);
+            for (PopulateSchematicBrush.Placement other : placements) {
+                if (other != placement) {
+                    int dx = other.position().x() - placement.position().x();
+                    int dz = other.position().z() - placement.position().z();
+                    assertTrue(dx * dx + dz * dz >= 16, "Placements too close: " + placement + ", " + other);
+                }
+            }
+        }
+
+        PopulateSchematicBrush empty = new PopulateSchematicBrush(List.of(schematic), 0, 4, false, true, new Random(9));
+        assertTrue(empty.findPlacements(extent, BlockVector3.at(0, 0, 0), 10).isEmpty());
+    }
+
+    @Test
+    @DisplayName("schematic population pastes schematics standing on the surface")
+    void populatePastesOnSurface() throws Exception {
+        TestExtent extent = flatGround(20);
+        PopulateSchematicBrush.paste(extent,
+            new PopulateSchematicBrush.Placement(BlockVector3.at(3, 1, -2), column(3), 90), true);
+
+        assertEquals(stone, extent.getBlock(BlockVector3.at(3, 1, -2)));
+        assertEquals(stone, extent.getBlock(BlockVector3.at(3, 3, -2)));
+        assertEquals(air, extent.getBlock(BlockVector3.at(3, 4, -2)));
+        assertEquals(air, extent.getBlock(BlockVector3.at(4, 1, -2)));
+    }
+
+    @Test
+    @DisplayName("command brush expands placeholders and runs every command")
+    void commandBrushRunsCommands() throws Exception {
+        assertEquals(List.of("//set stone", "/up 2"), CommandBrush.parseCommands(" //set stone ; up 2;; "));
+        assertEquals("//pos1 1,-2,3 r=4 w=world p=Steve",
+            CommandBrush.expand("//pos1 {x},{y},{z} r={size} w={world} p={player}", BlockVector3.at(1, -2, 3), 4, "world", "Steve"));
+        assertEquals("/x 2.50", CommandBrush.expand("/x {size}", BlockVector3.ZERO, 2.5, "w", "p"));
+
+        List<String> ran = new ArrayList<>();
+        CommandBrush brush = new CommandBrush("//sphere stone {size}; //pos1 {x},{y},{z}", (_, command) -> ran.add(command));
+        Player player = mock(Player.class);
+        World world = mock(World.class);
+        when(world.getName()).thenReturn("world");
+        when(player.getWorld()).thenReturn(world);
+        when(player.getName()).thenReturn("Steve");
+        EditSession editSession = mock(EditSession.class);
+        brush.build(player, mock(LocalSession.class), editSession, BlockVector3.at(5, 6, 7), null, 3);
+
+        assertEquals(List.of("//sphere stone 3", "//pos1 5,6,7"), ran);
+        verifyNoInteractions(editSession);
     }
 }
