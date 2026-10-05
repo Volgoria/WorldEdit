@@ -37,7 +37,7 @@ public enum ToolAction implements GuiAction {
     TREE(ActionSpec.bind("Tree planter", "Grows a tree where you click", "OAK_SAPLING", "/tool tree")),
     REPLACER(ActionSpec.bind("Replacer", "Replaces the clicked block with your pattern", "SHEARS",
         "/tool repl {pattern}")),
-    LONG_RANGE_BUILD(ActionSpec.bind("Long-range builder", "Left-click: your pattern, right-click: air, at range",
+    LONG_RANGE_BUILD(ActionSpec.bind("Long-range builder", "Right-click: your pattern, left-click: air, at range",
         "BOW", "/tool lrbuild {pattern} air")),
     CYCLER(ActionSpec.bind("Data cycler", "Cycles the block states of the clicked block", "REPEATER",
         "/tool cycler")),

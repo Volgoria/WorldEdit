@@ -86,6 +86,14 @@ class ActionSpecTest {
     }
 
     @Test
+    void longRangeBuilderDescribesTheClicksItBinds() {
+        // /tool lrbuild <a> <b> places <a> on right-click and <b> on left-click
+        ActionSpec spec = ToolAction.LONG_RANGE_BUILD.spec();
+        assertTrue(spec.template().endsWith("{pattern} air"), spec.template());
+        assertTrue(spec.description().startsWith("Right-click: your pattern, left-click: air"), spec.description());
+    }
+
+    @Test
     void textInput() {
         assertEquals("\"Hello world\"", InputKind.TEXT.toArgument("  Hello world "));
         assertEquals("\"-h\"", InputKind.TEXT.toArgument("-h"));

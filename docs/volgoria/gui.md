@@ -195,7 +195,7 @@ Chaque bouton **lie** l'outil (`/tool ...`). Taille : « Range ».
 
 Remarque : avec WorldEdit, `/tool lrbuild <a> <b>` pose `<a>` au **clic droit** et `<b>` au
 **clic gauche** ; le bouton « Long-range builder » pose donc votre pattern au clic droit et de l'air
-au clic gauche (sa description indique l'inverse).
+au clic gauche.
 
 ## Construction
 

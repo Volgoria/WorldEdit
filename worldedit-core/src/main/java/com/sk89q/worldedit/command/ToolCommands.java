@@ -343,9 +343,9 @@ public class ToolCommands {
     )
     @CommandPermissions("worldedit.tool.lrbuild")
     public void longrangebuildtool(Player player, LocalSession session,
-                                   @Arg(desc = "Pattern to set on left-click")
-                                       Pattern primary,
                                    @Arg(desc = "Pattern to set on right-click")
+                                       Pattern primary,
+                                   @Arg(desc = "Pattern to set on left-click")
                                        Pattern secondary) throws WorldEditException {
         setTool(player, session, new LongRangeBuildTool(primary, secondary), "worldedit.tool.lrbuild.equip");
         player.printInfo(TranslatableComponent.of("worldedit.tool.lrbuild.set", describePattern(primary), describePattern(secondary)));
