@@ -593,11 +593,10 @@ public record BlockVector3(int x, int y, int z) {
      * @see AffineTransform another method to transform vectors
      */
     public BlockVector3 transform2D(double angle, double aboutX, double aboutZ, double translateX, double translateZ) {
-        angle = Math.toRadians(angle);
         double x = this.x - aboutX;
         double z = this.z - aboutZ;
-        double cos = Math.cos(angle);
-        double sin = Math.sin(angle);
+        double cos = MathUtils.dCos(angle);
+        double sin = MathUtils.dSin(angle);
         double x2 = x * cos - z * sin;
         double z2 = x * sin + z * cos;
 

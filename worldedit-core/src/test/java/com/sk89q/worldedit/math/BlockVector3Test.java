@@ -20,7 +20,6 @@
 package com.sk89q.worldedit.math;
 
 import com.sk89q.worldedit.util.test.VariedVectorGenerator;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -142,8 +141,6 @@ public class BlockVector3Test {
     }
 
     @Test
-    @Disabled("Bug: transform2D uses Math.cos/sin(Math.toRadians(angle)) and then floors, so residue such as "
-        + "cos(270deg) = -1.8e-16 becomes an off-by-one. Fix: use MathUtils.dCos/dSin as AffineTransform does.")
     @DisplayName("rotates exactly by right angles in transform2D")
     void transform2DRightAngles() {
         BlockVector3 v = BlockVector3.at(2, 64, 0);

@@ -19,7 +19,6 @@
 
 package com.sk89q.worldedit.math;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -104,14 +103,14 @@ public class Vector2Test {
     }
 
     @Test
-    @Disabled("Bug: transform2D uses Math.cos/sin(Math.toRadians(angle)) and then floors, so residue such as "
-        + "cos(270deg) = -1.8e-16 becomes an off-by-one. Fix: use MathUtils.dCos/dSin as AffineTransform does.")
     void blockTransform2DIsExactForRightAngles() {
         // floating point residue from Math.cos/sin must not be floored into an off-by-one
         assertEquals(BlockVector2.at(0, 2), BlockVector2.at(2, 0).transform2D(90, 0, 0, 0, 0));
         assertEquals(BlockVector2.at(-2, 0), BlockVector2.at(2, 0).transform2D(180, 0, 0, 0, 0));
         assertEquals(BlockVector2.at(0, -2), BlockVector2.at(2, 0).transform2D(270, 0, 0, 0, 0));
-        assertEquals(BlockVector2.at(5, 3), BlockVector2.at(3, 3).transform2D(-90, 3, 1, 0, 0));
+        // offset (0, 2) from (3, 1) rotated by -90 degrees is (2, 0)
+        assertEquals(BlockVector2.at(5, 1), BlockVector2.at(3, 3).transform2D(-90, 3, 1, 0, 0));
+        assertEquals(BlockVector2.at(3, 3), BlockVector2.at(5, 1).transform2D(90, 3, 1, 0, 0));
     }
 
     @Test
