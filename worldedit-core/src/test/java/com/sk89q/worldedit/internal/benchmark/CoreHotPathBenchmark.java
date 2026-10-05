@@ -29,8 +29,11 @@ import com.sk89q.worldedit.function.block.Counter;
 import com.sk89q.worldedit.function.mask.RegionMask;
 import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operations;
+import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.function.visitor.RecursiveVisitor;
 import com.sk89q.worldedit.function.visitor.RegionVisitor;
+import com.sk89q.worldedit.history.change.BlockChange;
+import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
 import com.sk89q.worldedit.internal.block.BlockStateIdAccess;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
@@ -51,6 +54,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -118,20 +122,103 @@ class CoreHotPathBenchmark extends BaseWorldEditTest {
         long run() throws Exception;
     }
 
+    private static final com.sun.management.ThreadMXBean THREADS =
+        (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+
+    private static long allocatedBytes() {
+        return THREADS.getCurrentThreadAllocatedBytes();
+    }
+
     private static void bench(String name, Body body) throws Exception {
         long sink = 0;
         for (int i = 0; i < WARMUP; i++) {
             sink += body.run();
         }
         long[] times = new long[MEASURE];
+        long[] allocs = new long[MEASURE];
         for (int i = 0; i < MEASURE; i++) {
+            long startAlloc = allocatedBytes();
             long start = System.nanoTime();
             sink += body.run();
             times[i] = System.nanoTime() - start;
+            allocs[i] = allocatedBytes() - startAlloc;
         }
         Arrays.sort(times);
-        String line = String.format("%-40s median %9.3f ms  (min %9.3f ms)  [sink=%d]%n",
-            name, times[MEASURE / 2] / 1e6, times[0] / 1e6, sink);
+        Arrays.sort(allocs);
+        report(String.format("%-40s median %9.3f ms  (min %9.3f ms)  alloc %9.2f MB  [sink=%d]%n",
+            name, times[MEASURE / 2] / 1e6, times[0] / 1e6, allocs[MEASURE / 2] / 1e6, sink));
+    }
+
+    /**
+     * A benchmark made of several phases, each timed and measured separately.
+     */
+    @FunctionalInterface
+    private interface PhasedBody {
+        /**
+         * Run one iteration, calling {@code phase.end(i)} after finishing phase {@code i}.
+         */
+        long run(PhaseClock phase) throws Exception;
+    }
+
+    private static final class PhaseClock {
+        private final long[] times;
+        private final long[] allocs;
+        private long lastTime;
+        private long lastAlloc;
+
+        PhaseClock(int phases) {
+            times = new long[phases];
+            allocs = new long[phases];
+        }
+
+        void start() {
+            lastAlloc = allocatedBytes();
+            lastTime = System.nanoTime();
+        }
+
+        void end(int phase) {
+            long now = System.nanoTime();
+            long alloc = allocatedBytes();
+            times[phase] = now - lastTime;
+            allocs[phase] = alloc - lastAlloc;
+            // exclude the measurement itself from the next phase as far as possible
+            lastAlloc = allocatedBytes();
+            lastTime = System.nanoTime();
+        }
+    }
+
+    private static void benchPhases(String name, String[] phases, int warmup, int measure,
+                                    PhasedBody body) throws Exception {
+        long sink = 0;
+        PhaseClock clock = new PhaseClock(phases.length);
+        for (int i = 0; i < warmup; i++) {
+            clock.start();
+            sink += body.run(clock);
+        }
+        long[][] times = new long[phases.length + 1][measure];
+        long[][] allocs = new long[phases.length + 1][measure];
+        for (int i = 0; i < measure; i++) {
+            System.gc();
+            clock.start();
+            sink += body.run(clock);
+            for (int p = 0; p < phases.length; p++) {
+                times[p][i] = clock.times[p];
+                allocs[p][i] = clock.allocs[p];
+                times[phases.length][i] += clock.times[p];
+                allocs[phases.length][i] += clock.allocs[p];
+            }
+        }
+        for (int p = 0; p <= phases.length; p++) {
+            Arrays.sort(times[p]);
+            Arrays.sort(allocs[p]);
+            String phase = p < phases.length ? phases[p] : "total";
+            report(String.format("%-40s median %9.3f ms  (min %9.3f ms)  alloc %9.2f MB  [sink=%d]%n",
+                name + " [" + phase + "]", times[p][measure / 2] / 1e6, times[p][0] / 1e6,
+                allocs[p][measure / 2] / 1e6, sink));
+        }
+    }
+
+    private static void report(String line) {
         System.out.print(line);
         try {
             Files.writeString(Path.of("build", "benchmark-results.txt"), line, StandardCharsets.UTF_8,
@@ -317,6 +404,122 @@ class CoreHotPathBenchmark extends BaseWorldEditTest {
             }
             return (long) changed + world.blocks().size();
         });
+    }
+
+    @Test
+    void editSessionSetFlushUndo1M() throws Exception {
+        when(MOCKED_PLATFORM.getRegistries()).thenReturn(SimpleMaterialRegistries.create());
+        BlockState air = new BlockType("benchcycle:air").getDefaultState();
+        // Real platforms give every state an internal ID
+        BlockStateIdAccess.register(air, BlockStateIdAccess.invalidId());
+        for (BlockState state : palette) {
+            if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(state))) {
+                BlockStateIdAccess.register(state, BlockStateIdAccess.invalidId());
+            }
+        }
+        // 100 * 100 * 100 = 1M blocks
+        CuboidRegion region = cube(100);
+        Pattern pattern = new Pattern() {
+            @Override
+            public BaseBlock applyBlock(BlockVector3 pos) {
+                return palette[(pos.x() * 31 + pos.y() * 7 + pos.z()) & (palette.length - 1)].toBaseBlock();
+            }
+        };
+        String[] phases = {"set", "flush", "undo"};
+        benchPhases("EditSession 1M set/flush/undo", phases, 3, 9, clock -> {
+            InMemoryWorld world = new InMemoryWorld(air, -64, 319);
+            EditSession session = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build();
+            int changed;
+            try (session) {
+                changed = session.setBlocks(region, pattern);
+                clock.end(0);
+            }
+            clock.end(1);
+            try (EditSession undo = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build()) {
+                session.undo(undo);
+            }
+            clock.end(2);
+            assertEquals(region.getVolume(), changed);
+            return (long) changed + world.blocks().size();
+        });
+    }
+
+    @Test
+    void editSessionMoveRegion() throws Exception {
+        when(MOCKED_PLATFORM.getRegistries()).thenReturn(SimpleMaterialRegistries.create());
+        BlockState air = new BlockType("benchmove:air").getDefaultState();
+        BlockStateIdAccess.register(air, BlockStateIdAccess.invalidId());
+        for (BlockState state : palette) {
+            if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(state))) {
+                BlockStateIdAccess.register(state, BlockStateIdAccess.invalidId());
+            }
+        }
+        CuboidRegion region = cube(64);
+        String[] phases = {"move+flush", "undo"};
+        benchPhases("EditSession.moveRegion 64^3", phases, 3, 9, clock -> {
+            InMemoryWorld world = new InMemoryWorld(air, -64, 319);
+            for (BlockVector3 pos : region) {
+                world.blocks().put(pos, palette[(pos.x() * 31 + pos.y() * 7 + pos.z()) & (palette.length - 1)]);
+            }
+            clock.start();
+            EditSession session = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build();
+            int moved;
+            try (session) {
+                moved = session.moveRegion(region, BlockVector3.at(1, 0, 0), 40, true, null);
+            }
+            clock.end(0);
+            try (EditSession undo = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build()) {
+                session.undo(undo);
+            }
+            clock.end(1);
+            return (long) moved + world.blocks().size();
+        });
+    }
+
+    private static long usedHeapAfterGc() {
+        long used = Long.MAX_VALUE;
+        // a few rounds, as one GC does not always collect everything
+        for (int i = 0; i < 3; i++) {
+            System.gc();
+            used = Math.min(used, ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed());
+        }
+        return used;
+    }
+
+    /**
+     * Give the benchmark states internal IDs, as real platforms do.
+     */
+    private static void registerPaletteIds() {
+        for (BlockState state : palette) {
+            if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(state))) {
+                BlockStateIdAccess.register(state, BlockStateIdAccess.invalidId());
+            }
+        }
+        if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(stone))) {
+            BlockStateIdAccess.register(stone, BlockStateIdAccess.invalidId());
+        }
+    }
+
+    @Test
+    void historyRetainedMemory1M() throws Exception {
+        registerPaletteIds();
+        CuboidRegion region = cube(100);
+        BaseBlock previous = stone.toBaseBlock();
+        long[] retained = new long[5];
+        for (int round = 0; round < retained.length; round++) {
+            long before = usedHeapAfterGc();
+            BlockOptimizedHistory history = new BlockOptimizedHistory();
+            for (BlockVector3 pos : region) {
+                BlockState current = palette[(pos.x() * 31 + pos.y() * 7 + pos.z()) & (palette.length - 1)];
+                history.add(new BlockChange(pos, previous, current.toBaseBlock()));
+            }
+            retained[round] = usedHeapAfterGc() - before;
+            // also keeps the history reachable while measuring
+            assertEquals(region.getVolume(), history.size());
+        }
+        Arrays.sort(retained);
+        report(String.format("%-40s median retained %9.2f MB%n", "BlockOptimizedHistory 1M changes",
+            retained[retained.length / 2] / 1e6));
     }
 
     @Test
