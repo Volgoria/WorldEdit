@@ -19,17 +19,25 @@
 
 package com.sk89q.worldedit.regions;
 
+import com.sk89q.worldedit.BaseWorldEditTest;
 import com.sk89q.worldedit.math.BlockVector2;
+import com.sk89q.worldedit.math.BlockVector3;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class Polygonal2DRegionTest {
+public class Polygonal2DRegionTest extends BaseWorldEditTest {
 
     @ParameterizedTest
     @MethodSource("areaTestData")
@@ -76,6 +84,101 @@ public class Polygonal2DRegionTest {
                         {10, 2}, {8, 0}, {6, 1}, {9, 4}, {6, 3}, {4, 1}, {3, 0}, {1, 1},
                 }, 55) // complex polygon
         );
+    }
+
+    @ParameterizedTest
+    @MethodSource("areaTestData")
+    void iterationCountMatchesVolume(int[][] coordinates, long expectedVolume) {
+        Polygonal2DRegion region = new Polygonal2DRegion(null, toPoints(coordinates), 3, 5);
+
+        Set<BlockVector3> seen = new HashSet<>();
+        for (BlockVector3 pos : region) {
+            assertTrue(region.contains(pos), () -> "iterated position not contained: " + pos);
+            assertTrue(seen.add(pos), () -> "duplicate position " + pos);
+        }
+        assertEquals(expectedVolume * 3, seen.size());
+        assertEquals(expectedVolume * 3, region.getVolume());
+
+        Set<BlockVector2> flat = new HashSet<>();
+        region.asFlatRegion().forEach(flat::add);
+        assertEquals(expectedVolume, flat.size());
+    }
+
+    @Test
+    void containsIncludesEdgesAndRespectsHeight() {
+        Polygonal2DRegion region = new Polygonal2DRegion(null, toPoints(new int[][]{{0, 0}, {4, 0}, {4, 4}, {0, 4}}), 0, 2);
+        assertTrue(region.contains(BlockVector3.at(0, 0, 0)));
+        assertTrue(region.contains(BlockVector3.at(4, 2, 4)));
+        assertTrue(region.contains(BlockVector3.at(2, 1, 0)));
+        assertFalse(region.contains(BlockVector3.at(2, 3, 2)));
+        assertFalse(region.contains(BlockVector3.at(2, -1, 2)));
+        assertFalse(region.contains(BlockVector3.at(5, 1, 2)));
+    }
+
+    @Test
+    void degeneratePolygonContainsNothing() {
+        Polygonal2DRegion region = new Polygonal2DRegion(null, toPoints(new int[][]{{0, 0}, {4, 0}}), 0, 2);
+        assertFalse(region.contains(BlockVector3.at(0, 0, 0)));
+        assertFalse(region.contains(BlockVector3.at(2, 0, 0)));
+    }
+
+    @Test
+    void boundsFollowPoints() {
+        Polygonal2DRegion region = new Polygonal2DRegion(null, toPoints(new int[][]{{-3, 2}, {5, -1}, {0, 7}}), 10, 4);
+        // minY and maxY are swapped into order
+        assertEquals(BlockVector3.at(-3, 4, -1), region.getMinimumPoint());
+        assertEquals(BlockVector3.at(5, 10, 7), region.getMaximumPoint());
+        assertEquals(9, region.getWidth());
+        assertEquals(7, region.getHeight());
+        assertEquals(9, region.getLength());
+    }
+
+    @Test
+    void shiftMovesPointsAndHeight() {
+        Polygonal2DRegion region = new Polygonal2DRegion(null, toPoints(new int[][]{{0, 0}, {2, 0}, {2, 2}, {0, 2}}), 0, 1);
+        long volume = region.getVolume();
+        region.shift(BlockVector3.at(10, 5, -10));
+        assertEquals(BlockVector3.at(10, 5, -10), region.getMinimumPoint());
+        assertEquals(BlockVector3.at(12, 6, -8), region.getMaximumPoint());
+        assertEquals(volume, region.getVolume());
+        assertEquals(BlockVector2.at(10, -10), region.getPoints().getFirst());
+    }
+
+    @Test
+    void expandAndContractOnlyVertically() throws RegionOperationException {
+        Polygonal2DRegion region = new Polygonal2DRegion(null, toPoints(new int[][]{{0, 0}, {2, 0}, {2, 2}, {0, 2}}), 0, 1);
+        region.expand(BlockVector3.at(0, 3, 0), BlockVector3.at(0, -2, 0));
+        assertEquals(-2, region.getMinimumY());
+        assertEquals(4, region.getMaximumY());
+        region.contract(BlockVector3.at(0, 1, 0), BlockVector3.at(0, -1, 0));
+        assertEquals(-1, region.getMinimumY());
+        assertEquals(3, region.getMaximumY());
+
+        assertThrows(RegionOperationException.class, () -> region.expand(BlockVector3.at(1, 0, 0)));
+        assertThrows(RegionOperationException.class, () -> region.contract(BlockVector3.at(0, 0, 1)));
+    }
+
+    @Test
+    void expandYOnlyGrows() {
+        Polygonal2DRegion region = new Polygonal2DRegion();
+        assertTrue(region.expandY(5));
+        assertFalse(region.expandY(5));
+        assertTrue(region.expandY(2));
+        assertTrue(region.expandY(9));
+        assertFalse(region.expandY(7));
+        assertEquals(2, region.getMinimumY());
+        assertEquals(9, region.getMaximumY());
+    }
+
+    @Test
+    void copyIsIndependent() {
+        Polygonal2DRegion region = new Polygonal2DRegion(null, toPoints(new int[][]{{0, 0}, {2, 0}, {2, 2}}), 0, 1);
+        Polygonal2DRegion copy = new Polygonal2DRegion(region);
+        copy.addPoint(BlockVector2.at(0, 2));
+        copy.shift(BlockVector3.at(1, 1, 1));
+        assertEquals(3, region.size());
+        assertEquals(4, copy.size());
+        assertEquals(BlockVector3.ZERO, region.getMinimumPoint());
     }
 
     private static List<BlockVector2> toPoints(int[]... coordinates) {

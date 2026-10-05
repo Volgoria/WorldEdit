@@ -1,0 +1,106 @@
+name: Upstream Sync
+# Keeps the fork's version/7.4.x in step with EngineHub/WorldEdit by opening
+# (or refreshing) a pull request that brings in new upstream commits.
+#
+# Notes:
+# - The repository setting "Allow GitHub Actions to create and approve pull
+#   requests" must be enabled for `gh pr create` to work with GITHUB_TOKEN.
+# - GITHUB_TOKEN cannot push commits that modify .github/workflows, and PRs
+#   opened with it do not trigger other workflows (so CI will not run on the
+#   sync PR automatically). Set an `UPSTREAM_SYNC_TOKEN` secret (a fine-grained
+#   PAT with contents, pull-requests and workflows write access) to lift both
+#   limitations; it is used instead of GITHUB_TOKEN when present.
+on:
+  schedule:
+    # Mondays, 06:17 UTC
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: https://github.com/EngineHub/WorldEdit.git
+  UPSTREAM_BRANCH: version/7.4.x
+  TARGET_BRANCH: version/7.4.x
+  SYNC_BRANCH: upstream-sync/version-7.4.x
+
+jobs:
+  sync:
+    name: Sync from upstream
+    # Never run in upstream itself
+    if: github.repository != 'EngineHub/WorldEdit'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: ${{ env.TARGET_BRANCH }}
+        fetch-depth: 0
+        token: ${{ secrets.UPSTREAM_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+
+    - name: Fetch upstream
+      run: |
+        git remote add upstream "$UPSTREAM_REPO"
+        git fetch --no-tags upstream "$UPSTREAM_BRANCH"
+
+    - name: Check for new upstream commits
+      id: check
+      run: |
+        upstream_sha="$(git rev-parse "upstream/$UPSTREAM_BRANCH")"
+        echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+        if git merge-base --is-ancestor "$upstream_sha" HEAD; then
+          echo "Fork's $TARGET_BRANCH already contains upstream $upstream_sha; nothing to do."
+          echo "changes=false" >> "$GITHUB_OUTPUT"
+        else
+          count="$(git rev-list --count "HEAD..$upstream_sha")"
+          echo "$count new upstream commit(s) to sync."
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "changes=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Push sync branch
+      if: steps.check.outputs.changes == 'true'
+      env:
+        UPSTREAM_SHA: ${{ steps.check.outputs.upstream_sha }}
+      run: |
+        # The sync branch mirrors upstream exactly; conflicts, if any, are resolved in the PR.
+        git push --force origin "$UPSTREAM_SHA:refs/heads/$SYNC_BRANCH"
+
+    - name: Open or update pull request
+      if: steps.check.outputs.changes == 'true'
+      env:
+        GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+        UPSTREAM_SHA: ${{ steps.check.outputs.upstream_sha }}
+        COUNT: ${{ steps.check.outputs.count }}
+      run: |
+        title="Sync with upstream $UPSTREAM_BRANCH"
+        body="$(cat <<EOF
+        Brings in $COUNT new commit(s) from [EngineHub/WorldEdit \`$UPSTREAM_BRANCH\`](https://github.com/EngineHub/WorldEdit/tree/$UPSTREAM_BRANCH) up to EngineHub/WorldEdit@$UPSTREAM_SHA.
+
+        This PR is opened and refreshed automatically by the \`Upstream Sync\` workflow. Merge it with a merge commit (not squash) to keep upstream history intact. If there are conflicts, resolve them on \`$SYNC_BRANCH\` or in a follow-up branch; the next run force-pushes \`$SYNC_BRANCH\` to the latest upstream head.
+        EOF
+        )"
+        existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$SYNC_BRANCH" --base "$TARGET_BRANCH" --state open --json number --jq '.[0].number')"
+        if [ -n "$existing" ]; then
+          echo "Updating existing PR #$existing"
+          gh pr edit "$existing" --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+        else
+          gh pr create --repo "$GITHUB_REPOSITORY" --head "$SYNC_BRANCH" --base "$TARGET_BRANCH" --title "$title" --body "$body"
+        fi
+
+    - name: Summary
+      if: always()
+      env:
+        CHANGES: ${{ steps.check.outputs.changes }}
+        COUNT: ${{ steps.check.outputs.count }}
+      run: |
+        if [ "$CHANGES" = "true" ]; then
+          echo "Synced $COUNT upstream commit(s) into a PR against \`$TARGET_BRANCH\`." >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "No new upstream commits on \`$UPSTREAM_BRANCH\`." >> "$GITHUB_STEP_SUMMARY"
+        fi
