@@ -7,3 +7,13 @@ folia-supported: true
 softdepend: [Vault]
 author: EngineHub
 website: https://enginehub.org/worldedit
+commands:
+  wegui:
+    description: Open the WorldEdit menu
+    usage: /<command> [brushes|blocks|schematics|selection|generation]
+    aliases: [/menu]
+    permission: worldedit.gui
+permissions:
+  worldedit.gui:
+    description: Allows opening the WorldEdit menus with /wegui or //menu. Each action still requires the permission of the WorldEdit command it runs.
+    default: op
