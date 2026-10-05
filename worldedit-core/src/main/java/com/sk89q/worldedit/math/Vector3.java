@@ -516,7 +516,7 @@ public record Vector3(double x, double y, double z) {
     /**
      * Get this vector's pitch as used within the game.
      *
-     * @return pitch in radians
+     * @return pitch in degrees
      */
     public double toPitch() {
         double x = this.x;
@@ -535,7 +535,7 @@ public record Vector3(double x, double y, double z) {
     /**
      * Get this vector's yaw as used within the game.
      *
-     * @return yaw in radians
+     * @return yaw in degrees
      */
     public double toYaw() {
         double x = this.x;

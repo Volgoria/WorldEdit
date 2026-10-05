@@ -610,7 +610,7 @@ public record BlockVector3(int x, int y, int z) {
     /**
      * Get this vector's pitch as used within the game.
      *
-     * @return pitch in radians
+     * @return pitch in degrees
      */
     public double toPitch() {
         double x = this.x;
@@ -629,7 +629,7 @@ public record BlockVector3(int x, int y, int z) {
     /**
      * Get this vector's yaw as used within the game.
      *
-     * @return yaw in radians
+     * @return yaw in degrees
      */
     public double toYaw() {
         double x = this.x;
