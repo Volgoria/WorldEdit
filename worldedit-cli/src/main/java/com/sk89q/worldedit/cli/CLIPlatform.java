@@ -24,10 +24,12 @@ import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.AbstractPlatform;
 import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.extension.platform.Preference;
+import com.sk89q.worldedit.internal.util.LogManagerCompat;
 import com.sk89q.worldedit.util.SideEffect;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.entity.EntityTypes;
 import com.sk89q.worldedit.world.registry.Registries;
+import org.apache.logging.log4j.Logger;
 import org.enginehub.piston.CommandManager;
 
 import java.util.ArrayList;
@@ -44,9 +46,18 @@ class CLIPlatform extends AbstractPlatform {
     private final CLIWorldEdit app;
     private int dataVersion = -1;
 
+    /**
+     * Scheduled tasks are expressed in game ticks, of which there are 20 per second.
+     */
+    static final long MILLIS_PER_TICK = 50;
+
+    private static final Logger LOGGER = LogManagerCompat.getLogger();
+
     private final List<World> worlds = new ArrayList<>();
-    private final Timer timer = new Timer();
+    // Daemon, so that a forgotten task can never keep the JVM alive
+    private final Timer timer = new Timer("WorldEdit CLI Scheduler", true);
     private int lastTimerId = 0;
+    private boolean shutdown;
 
     CLIPlatform(CLIWorldEdit app) {
         this.app = app;
@@ -78,17 +89,36 @@ class CLIPlatform extends AbstractPlatform {
     }
 
     @Override
-    public int schedule(long delay, long period, Runnable task) {
-        this.timer.schedule(new TimerTask() {
+    public synchronized int schedule(long delay, long period, Runnable task) {
+        if (shutdown) {
+            return -1;
+        }
+        TimerTask timerTask = new TimerTask() {
             @Override
             public void run() {
-                task.run();
-                if (period >= 0) {
-                    timer.schedule(this, period);
+                try {
+                    task.run();
+                } catch (RuntimeException e) {
+                    // Don't let one failing task kill the timer thread, and with it every other task
+                    LOGGER.error("Error running scheduled task", e);
                 }
             }
-        }, delay);
+        };
+        long delayMillis = Math.max(0, delay) * MILLIS_PER_TICK;
+        if (period > 0) {
+            this.timer.scheduleAtFixedRate(timerTask, delayMillis, period * MILLIS_PER_TICK);
+        } else {
+            this.timer.schedule(timerTask, delayMillis);
+        }
         return this.lastTimerId++;
+    }
+
+    /**
+     * Cancel all scheduled tasks. No further tasks can be scheduled afterwards.
+     */
+    synchronized void shutdown() {
+        shutdown = true;
+        this.timer.cancel();
     }
 
     @Override

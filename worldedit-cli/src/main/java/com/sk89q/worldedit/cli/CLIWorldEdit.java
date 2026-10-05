@@ -33,13 +33,11 @@ import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extension.platform.Platform;
 import com.sk89q.worldedit.extension.platform.PlatformCommandManager;
-import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
-import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
-import com.sk89q.worldedit.internal.Constants;
 import com.sk89q.worldedit.internal.util.LogManagerCompat;
 import com.sk89q.worldedit.registry.state.Property;
+import com.sk89q.worldedit.util.FileDialogUtil;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BlockCategory;
@@ -49,25 +47,23 @@ import com.sk89q.worldedit.world.block.FuzzyBlockState;
 import com.sk89q.worldedit.world.entity.EntityType;
 import com.sk89q.worldedit.world.item.ItemCategory;
 import com.sk89q.worldedit.world.item.ItemType;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.apache.logging.log4j.Logger;
 
-import java.io.ByteArrayInputStream;
+import java.awt.HeadlessException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.SequenceInputStream;
+import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import javax.annotation.Nullable;
 
 /**
  * The CLI implementation of WorldEdit.
@@ -76,18 +72,35 @@ public class CLIWorldEdit {
 
     private static final Logger LOGGER = LogManagerCompat.getLogger();
 
+    static final int EXIT_OK = 0;
+    static final int EXIT_ERROR = 1;
+    static final int EXIT_USAGE = 2;
+
+    private static final Path DEFAULT_WORKING_DIR = Paths.get("worldedit");
+
     public static CLIWorldEdit inst;
 
     private CLIPlatform platform;
     private CLIConfiguration config;
-    private Path workingDir;
+    private final Path workingDir;
     private String version;
+    private boolean started;
 
     private Actor commandSender;
 
     private FileRegistries fileRegistries;
 
     public CLIWorldEdit() {
+        this(DEFAULT_WORKING_DIR);
+    }
+
+    /**
+     * Create a new instance using the given working directory.
+     *
+     * @param workingDir the directory to store WorldEdit's files in
+     */
+    public CLIWorldEdit(Path workingDir) {
+        this.workingDir = workingDir;
         inst = this;
     }
 
@@ -107,6 +120,10 @@ public class CLIWorldEdit {
     private void registerCommands() {
         PlatformCommandManager pcm = WorldEdit.getInstance().getPlatformManager()
             .getPlatformCommandManager();
+        if (pcm.getCommandManager().containsCommand("cli")) {
+            // Already registered by an earlier run in this JVM; the commands are stateless
+            return;
+        }
         pcm.registerSubCommands(
             "cli",
             ImmutableList.of(),
@@ -185,13 +202,10 @@ public class CLIWorldEdit {
 
     public void onInitialized() {
         // Setup working directory
-        workingDir = Paths.get("worldedit");
-        if (!Files.exists(workingDir)) {
-            try {
-                Files.createDirectory(workingDir);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+        try {
+            Files.createDirectories(workingDir);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to create working directory " + workingDir, e);
         }
 
         this.commandSender = new CLICommandSender(LOGGER);
@@ -201,6 +215,7 @@ public class CLIWorldEdit {
 
     public void onStarted() {
         setupPlatform();
+        started = true;
 
         setupRegistries();
 
@@ -211,6 +226,15 @@ public class CLIWorldEdit {
     }
 
     public void onStopped() {
+        if (platform == null) {
+            return;
+        }
+        platform.shutdown();
+        if (!started) {
+            // Nothing was registered with WorldEdit
+            return;
+        }
+        started = false;
         WorldEdit worldEdit = WorldEdit.getInstance();
         worldEdit.getSessionManager().unload();
         worldEdit.getPlatformManager().unregister(platform);
@@ -265,121 +289,189 @@ public class CLIWorldEdit {
                 .forEach(world -> ((CLIWorld) world).save(force));
     }
 
+    /**
+     * Load the given file as the world to edit, starting up the platform.
+     *
+     * @param file the file
+     * @param format the detected format of the file
+     * @throws IOException if the file could not be read
+     */
+    void loadWorld(Path file, ClipboardFormat format) throws IOException {
+        LOGGER.info(() -> "Loading '" + file + "'...");
+        platform.setDataVersion(CLIFiles.readDataVersion(format, file));
+        onStarted();
+        ClipboardWorld world;
+        try (InputStream stream = Files.newInputStream(file);
+             ClipboardReader clipboardReader = format.getReader(stream)) {
+            world = new ClipboardWorld(
+                file.toFile(),
+                format,
+                clipboardReader.read(),
+                String.valueOf(file.getFileName())
+            );
+        }
+        platform.addWorld(world);
+        WorldEdit.getInstance().getSessionManager().get(commandSender).setWorldOverride(world);
+        LOGGER.info(() -> "Loaded '" + file + "'");
+    }
+
+    /**
+     * Run commands from the given stream until it ends or {@code stop} is entered.
+     *
+     * @param inputStream the stream to read commands from
+     */
     public void run(InputStream inputStream) {
-        try (Scanner scanner = new Scanner(inputStream, StandardCharsets.UTF_8)) {
+        run(List.of(), inputStream);
+    }
+
+    /**
+     * Run the given script commands, then (if {@code inputStream} is non-null) commands
+     * read from the stream, until the input ends or {@code stop} is entered.
+     * Modified worlds are saved after each command and at the end.
+     *
+     * @param scriptCommands commands to run first
+     * @param inputStream the stream to read further commands from, or {@code null} to only run the script
+     * @return the number of commands that were not recognised
+     */
+    int run(List<String> scriptCommands, @Nullable InputStream inputStream) {
+        int unknownCommands = 0;
+        try {
+            for (String command : scriptCommands) {
+                CommandResult result = handleLine(command);
+                if (result == CommandResult.STOP) {
+                    return unknownCommands;
+                }
+                if (result == CommandResult.UNKNOWN) {
+                    unknownCommands++;
+                }
+            }
+            if (inputStream == null) {
+                return unknownCommands;
+            }
+            // Not closed: that would close the given stream, which is usually System.in
+            Scanner scanner = new Scanner(inputStream, StandardCharsets.UTF_8);
             while (true) {
                 System.err.print("> ");
                 if (!scanner.hasNextLine()) {
                     break;
                 }
-                String line = scanner.nextLine();
-                if (line.isEmpty()) {
-                    continue;
-                }
-                if (line.equals("stop")) {
-                    commandSender.printInfo(TranslatableComponent.of("worldedit.cli.stopping"));
+                CommandResult result = handleLine(scanner.nextLine());
+                if (result == CommandResult.STOP) {
                     break;
                 }
-                CommandEvent event = new CommandEvent(commandSender, line);
-                WorldEdit.getInstance().getEventBus().post(event);
-                if (!event.isCancelled()) {
-                    commandSender.printError(TranslatableComponent.of("worldedit.cli.unknown-command"));
-                } else {
-                    saveAllWorlds(false);
+                if (result == CommandResult.UNKNOWN) {
+                    unknownCommands++;
                 }
             }
+            return unknownCommands;
         } finally {
             saveAllWorlds(false);
         }
     }
 
+    private enum CommandResult {
+        SKIPPED,
+        HANDLED,
+        UNKNOWN,
+        STOP
+    }
+
+    private CommandResult handleLine(String line) {
+        String command = CLIFiles.normalizeCommand(line);
+        if (command == null || command.startsWith("#")) {
+            return CommandResult.SKIPPED;
+        }
+        if (CLIFiles.isStopCommand(command)) {
+            commandSender.printInfo(TranslatableComponent.of("worldedit.cli.stopping"));
+            return CommandResult.STOP;
+        }
+        CommandEvent event = new CommandEvent(commandSender, command);
+        WorldEdit.getInstance().getEventBus().post(event);
+        if (!event.isCancelled()) {
+            commandSender.printError(TranslatableComponent.of("worldedit.cli.unknown-command"));
+            return CommandResult.UNKNOWN;
+        }
+        saveAllWorlds(false);
+        return CommandResult.HANDLED;
+    }
+
     public static void main(String[] args) {
-        Options options = new Options();
-        options.addOption("f", "file", true, "The file to load in. Either a schematic, or a level.dat in a world folder.");
-        options.addOption("s", "script", true, "A file containing a list of commands to run. Newline separated.");
-        int exitCode = 0;
+        System.exit(launch(args, System.in, System.out, DEFAULT_WORKING_DIR));
+    }
 
-        CLIWorldEdit app = new CLIWorldEdit();
-        app.onInitialized();
-
-        InputStream inputStream = System.in;
-
+    /**
+     * Run the CLI.
+     *
+     * @param args the command line arguments
+     * @param stdin the stream to read interactive commands from
+     * @param out the stream to print usage information to
+     * @param workingDir the WorldEdit working directory
+     * @return the process exit code
+     */
+    static int launch(String[] args, InputStream stdin, PrintStream out, Path workingDir) {
+        CLIArguments arguments;
         try {
-            CommandLine cmd = new DefaultParser().parse(options, args);
-
-            String fileArg = cmd.getOptionValue('f');
-            File file;
-            if (fileArg == null) {
-                String[] formats = Arrays.copyOf(ClipboardFormats.getFileExtensionArray(), ClipboardFormats.getFileExtensionArray().length + 1);
-                formats[formats.length - 1] = "dat";
-                file = app.commandSender.openFileOpenDialog(formats);
-            } else {
-                file = new File(fileArg);
-            }
-            if (file == null) {
-                throw new IllegalArgumentException("A file must be provided!");
-            }
-            LOGGER.info(() -> "Loading '" + file + "'...");
-            if (file.getName().endsWith("level.dat")) {
-                throw new IllegalArgumentException("level.dat file support is unfinished.");
-            } else {
-                ClipboardFormat format = ClipboardFormats.findByPath(file.toPath());
-                if (format != null) {
-                    int dataVersion;
-                    if (format != BuiltInClipboardFormat.MCEDIT_SCHEMATIC) {
-                        try (ClipboardReader dataVersionReader = format.getReader(
-                            Files.newInputStream(file.toPath(), StandardOpenOption.READ)
-                        )) {
-                            dataVersion = dataVersionReader.getDataVersion()
-                                .orElseThrow(() -> new IllegalArgumentException("Failed to obtain data version from schematic."));
-                        }
-                    } else {
-                        dataVersion = Constants.DATA_VERSION_MC_1_13_2;
-                    }
-                    app.platform.setDataVersion(dataVersion);
-                    app.onStarted();
-                    ClipboardWorld world;
-                    try (ClipboardReader clipboardReader = format.getReader(Files.newInputStream(file.toPath(), StandardOpenOption.READ))) {
-                        world = new ClipboardWorld(
-                                file,
-                                format,
-                                clipboardReader.read(),
-                                file.getName()
-                        );
-                    }
-                    app.platform.addWorld(world);
-                    WorldEdit.getInstance().getSessionManager().get(app.commandSender).setWorldOverride(world);
-                } else {
-                    throw new IllegalArgumentException("Unknown file provided!");
-                }
-            }
-            LOGGER.info(() -> "Loaded '" + file + "'");
-
-            String scriptFile = cmd.getOptionValue('s');
-            if (scriptFile != null) {
-                File scriptFileHandle = new File(scriptFile);
-                if (!scriptFileHandle.exists()) {
-                    throw new IllegalArgumentException("Could not find given script file.");
-                }
-                InputStream scriptStream = Files.newInputStream(scriptFileHandle.toPath(), StandardOpenOption.READ);
-                InputStream newLineStream = new ByteArrayInputStream("\n".getBytes(StandardCharsets.UTF_8));
-                // Cleaner to do this than make an Enumeration :(
-                inputStream = new SequenceInputStream(new SequenceInputStream(scriptStream, newLineStream), inputStream);
-            }
-
-            app.run(inputStream);
-        } catch (Exception e) {
-            LOGGER.error("An error occurred", e);
-            exitCode = 1;
-        } finally {
-            app.onStopped();
-            try {
-                inputStream.close();
-            } catch (IOException e) {
-                LOGGER.warn("Failed to close stdin", e);
-            }
+            arguments = CLIArguments.parse(args);
+        } catch (ParseException e) {
+            out.println("Error: " + e.getMessage());
+            out.print(CLIArguments.usage());
+            out.flush();
+            return EXIT_USAGE;
+        }
+        if (arguments.help()) {
+            out.print(CLIArguments.usage());
+            out.flush();
+            return EXIT_OK;
         }
 
-        System.exit(exitCode);
+        // Validate the inputs before starting anything up
+        Path file;
+        ClipboardFormat format;
+        List<String> scriptCommands;
+        try {
+            file = arguments.file();
+            if (file == null) {
+                file = askForFile();
+            }
+            format = CLIFiles.detectFormat(file);
+            scriptCommands = arguments.script() == null ? List.of() : CLIFiles.readScript(arguments.script());
+        } catch (IllegalArgumentException e) {
+            LOGGER.error(e.getMessage());
+            return EXIT_ERROR;
+        } catch (IOException e) {
+            LOGGER.error("Failed to read script file '" + arguments.script() + "'", e);
+            return EXIT_ERROR;
+        }
+
+        CLIWorldEdit app = new CLIWorldEdit(workingDir);
+        try {
+            app.onInitialized();
+            app.loadWorld(file, format);
+            int unknownCommands = app.run(scriptCommands, arguments.nonInteractive() ? null : stdin);
+            if (arguments.nonInteractive() && unknownCommands > 0) {
+                LOGGER.error(unknownCommands + " command(s) in the script were not recognised.");
+                return EXIT_ERROR;
+            }
+            return EXIT_OK;
+        } catch (Exception e) {
+            LOGGER.error("An error occurred", e);
+            return EXIT_ERROR;
+        } finally {
+            app.onStopped();
+        }
+    }
+
+    private static Path askForFile() {
+        File chosen;
+        try {
+            chosen = FileDialogUtil.showOpenDialog(CLIFiles.openableExtensions());
+        } catch (HeadlessException _) {
+            throw new IllegalArgumentException("No file was given and no file chooser can be shown;"
+                + " use --file <path> to specify the file to load.");
+        }
+        if (chosen == null) {
+            throw new IllegalArgumentException("A file must be provided! Use --file <path> to specify one.");
+        }
+        return chosen.toPath();
     }
 }

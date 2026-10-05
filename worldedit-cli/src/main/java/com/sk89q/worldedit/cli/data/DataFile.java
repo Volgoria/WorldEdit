@@ -32,7 +32,27 @@ public record DataFile(@SerializedName("itemtags") Map<String, List<String>> ite
                        List<String> biomes,
                        Map<String, BlockManifest> blocks) {
 
+    /**
+     * Missing sections of the data file are treated as empty.
+     */
+    public DataFile {
+        itemTags = itemTags == null ? Map.of() : itemTags;
+        blockTags = blockTags == null ? Map.of() : blockTags;
+        entityTags = entityTags == null ? Map.of() : entityTags;
+        items = items == null ? List.of() : items;
+        entities = entities == null ? List.of() : entities;
+        biomes = biomes == null ? List.of() : biomes;
+        blocks = blocks == null ? Map.of() : blocks;
+    }
+
     public record BlockManifest(@SerializedName("defaultstate") String defaultState, Map<String, BlockProperty> properties) {
+
+        /**
+         * Blocks without properties may omit them.
+         */
+        public BlockManifest {
+            properties = properties == null ? Map.of() : properties;
+        }
     }
 
     public record BlockProperty(List<String> values, String type) {

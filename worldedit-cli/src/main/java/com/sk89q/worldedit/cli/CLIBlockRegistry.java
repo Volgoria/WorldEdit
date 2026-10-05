@@ -32,28 +32,34 @@ import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.registry.BundledBlockRegistry;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import javax.annotation.Nullable;
 
 @SuppressWarnings("removal")
 public class CLIBlockRegistry extends BundledBlockRegistry {
 
-    private Property<?> createProperty(String type, String key, List<String> values) {
+    static Property<?> createProperty(String type, String key, List<String> values) {
         return switch (type) {
             case "int" -> new IntegerProperty(key, values.stream().map(Integer::parseInt).toList());
             case "bool" -> new BooleanProperty(key, values.stream().map(Boolean::parseBoolean).toList());
             case "enum" -> new EnumProperty(key, values);
             case "direction" ->
-                new DirectionalProperty(key, values.stream().map(String::toUpperCase).map(Direction::valueOf).toList());
-            default -> throw new RuntimeException("Failed to create property");
+                new DirectionalProperty(key, values.stream().map(value -> value.toUpperCase(Locale.ROOT)).map(Direction::valueOf).toList());
+            default -> throw new IllegalArgumentException("Unknown property type '" + type + "' for property '" + key + "'");
         };
     }
 
     @Nullable
     @Override
     public Map<String, ? extends Property<?>> getProperties(BlockType blockType) {
-        Map<String, DataFile.BlockProperty> properties =
-                CLIWorldEdit.inst.getFileRegistries().getDataFile().blocks().get(blockType.id()).properties();
+        DataFile.BlockManifest manifest =
+                CLIWorldEdit.inst.getFileRegistries().getDataFile().blocks().get(blockType.id());
+        if (manifest == null) {
+            // Not a block known to the data file
+            return ImmutableMap.of();
+        }
+        Map<String, DataFile.BlockProperty> properties = manifest.properties();
         Maps.EntryTransformer<String, DataFile.BlockProperty, Property<?>> entryTransform =
             (key, value) -> createProperty(value.type(), key, value.values());
         return ImmutableMap.copyOf(Maps.transformEntries(properties, entryTransform));

@@ -25,12 +25,15 @@ import java.nio.file.Path;
 
 public class CLIConfiguration extends PropertiesConfiguration {
 
+    private final CLIWorldEdit app;
+
     public CLIConfiguration(CLIWorldEdit app) {
         super(app.getWorkingDir().resolve("worldedit.properties"));
+        this.app = app;
     }
 
     @Override
     public Path getWorkingDirectoryPath() {
-        return CLIWorldEdit.inst.getWorkingDir();
+        return app.getWorkingDir();
     }
 }

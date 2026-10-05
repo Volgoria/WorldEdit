@@ -47,8 +47,12 @@ import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.generation.TreeType;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -210,12 +214,49 @@ public class ClipboardWorld extends AbstractWorld implements Clipboard, CLIWorld
     @Override
     public void save(boolean force) {
         if (dirty || force) {
-            try (ClipboardWriter writer = format.getWriter(new FileOutputStream(file))) {
-                writer.write(this);
+            try {
+                writeAtomically();
                 dirty = false;
             } catch (IOException e) {
                 WorldEdit.logger.warn("Failed to save clipboard to file: " + file, e);
             }
+        }
+    }
+
+    /**
+     * Write to a temporary file next to the target, then move it into place,
+     * so that a failed save never leaves a truncated or corrupt schematic behind.
+     */
+    private void writeAtomically() throws IOException {
+        Path target = file.toPath().toAbsolutePath();
+        Path temp = Files.createTempFile(target.getParent(), target.getFileName().toString(), ".tmp");
+        try {
+            try (OutputStream out = Files.newOutputStream(temp);
+                 ClipboardWriter writer = format.getWriter(out)) {
+                writer.write(this);
+            }
+            copyPermissions(target, temp);
+            try {
+                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException _) {
+                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
+    /**
+     * Temporary files are created owner-only; keep the original file's permissions instead.
+     */
+    private static void copyPermissions(Path from, Path to) {
+        if (!Files.exists(from)) {
+            return;
+        }
+        try {
+            Files.setPosixFilePermissions(to, Files.getPosixFilePermissions(from));
+        } catch (UnsupportedOperationException | IOException _) {
+            // Not a POSIX file system, or not permitted; the defaults will do
         }
     }
 
