@@ -25,6 +25,7 @@ import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.command.util.AsyncCommandBuilder;
+import com.sk89q.worldedit.command.util.CommandHelper;
 import com.sk89q.worldedit.command.util.CommandPermissions;
 import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.command.util.WorldEditAsyncCommandBuilder;
@@ -47,6 +48,7 @@ import com.sk89q.worldedit.internal.util.LogManagerCompat;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.Transform;
 import com.sk89q.worldedit.session.ClipboardHolder;
+import com.sk89q.worldedit.util.auth.AuthorizationException;
 import com.sk89q.worldedit.util.formatting.component.CodeFormat;
 import com.sk89q.worldedit.util.formatting.component.ErrorFormat;
 import com.sk89q.worldedit.util.formatting.component.PaginationBox;
@@ -367,7 +369,8 @@ public class SchematicCommands {
         name = "rename",
         aliases = {"move", "mv"},
         desc = "Rename or move a saved schematic",
-        descFooter = "The new name keeps the file extension of the schematic."
+        descFooter = "The new name keeps the file extension of the schematic. Renaming removes the old name, so it "
+            + "also needs the worldedit.schematic.delete permission."
     )
     @CommandPermissions("worldedit.schematic.rename")
     public void rename(Actor actor,
@@ -378,6 +381,9 @@ public class SchematicCommands {
                            String destination,
                        @Switch(name = 'f', desc = "Overwrite an existing file.")
                            boolean allowOverwrite) throws WorldEditException {
+        if (!CommandHelper.canRenameSchematics(actor)) {
+            throw new AuthorizationException(TranslatableComponent.of("worldedit.schematic.rename.needs-delete"));
+        }
         transferSchematic(actor, schematic, destination, allowOverwrite, true);
     }
 

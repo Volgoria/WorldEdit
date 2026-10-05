@@ -49,7 +49,7 @@ commandes d'origine sont documentées sur <https://worldedit.enginehub.org/>.
 | [`//heightmap import`](#heightmap-import) | `//hmap import`, `... load` | `worldedit.image.heightmap.import` |
 | [`//heightmap export`](#heightmap-export) | `//hmap export`, `... save` | `worldedit.image.heightmap.export` |
 | [`/schem info`](#schem-info) | `/schem i` | `worldedit.schematic.info` |
-| [`/schem rename`](#schem-rename) | `/schem move`, `/schem mv` | `worldedit.schematic.rename` |
+| [`/schem rename`](#schem-rename) | `/schem move`, `/schem mv` | `worldedit.schematic.rename` + `worldedit.schematic.delete` |
 | [`/schem copy`](#schem-copy) | `/schem cp` | `worldedit.schematic.copy` |
 | [`/schem list`](#schem-list-filtres) (filtres) | `/schem all`, `/schem ls` | `worldedit.schematic.list` (inchangée) |
 | [`/schem save` / `load` / `formats`](#nouveaux-formats-dans-schem-save--load--formats) | — | inchangées |
@@ -563,11 +563,13 @@ version* Minecraft et taille du fichier. La lecture se fait en arrière-plan.
 /schem rename [-f] <fichier> <nouveauNom>
 ```
 
-Alias : `/schem move`, `/schem mv` — Permission : `worldedit.schematic.rename`
+Alias : `/schem move`, `/schem mv` — Permissions : `worldedit.schematic.rename` **et**
+`worldedit.schematic.delete` (renommer fait disparaître l'ancien nom ; sans la permission de
+suppression, utilisez `/schem copy`)
 
 Renomme ou déplace une schematic. Le nouveau nom est relatif au dossier des schematics et **garde
 l'extension** du fichier d'origine (elle est ajoutée si absente ou différente). Écraser un fichier
-existant demande `-f` **et** la permission `worldedit.schematic.delete`.
+existant demande en plus `-f`.
 
 ```
 /schem rename ferme maisons/ferme_v2
@@ -581,7 +583,8 @@ existant demande `-f` **et** la permission `worldedit.schematic.delete`.
 
 Alias : `/schem cp` — Permission : `worldedit.schematic.copy`
 
-Comme `rename`, mais conserve l'original. Mêmes règles pour l'extension et l'écrasement.
+Comme `rename`, mais conserve l'original : `worldedit.schematic.delete` n'est donc exigée que pour
+écraser un fichier existant (avec `-f`). Mêmes règles pour l'extension.
 
 ```
 /schem copy maisons/ferme archives/ferme_2026

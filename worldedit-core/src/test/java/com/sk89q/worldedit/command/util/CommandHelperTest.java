@@ -81,6 +81,20 @@ class CommandHelperTest extends BaseWorldEditTest {
     }
 
     @Test
+    void renamingSchematicsNeedsTheDeletePermission() {
+        // renaming removes the original name, which is a deletion
+        Actor renamer = mock(Actor.class);
+        when(renamer.hasPermission("worldedit.schematic.rename")).thenReturn(true);
+        assertFalse(CommandHelper.canRenameSchematics(renamer));
+        when(renamer.hasPermission("worldedit.schematic.delete")).thenReturn(true);
+        assertTrue(CommandHelper.canRenameSchematics(renamer));
+
+        Actor deleter = mock(Actor.class);
+        when(deleter.hasPermission("worldedit.schematic.delete")).thenReturn(true);
+        assertFalse(CommandHelper.canRenameSchematics(deleter));
+    }
+
+    @Test
     void printAffectedPrintsCountAndReturnsIt() {
         Actor actor = mock(Actor.class);
         assertEquals(42, CommandHelper.printAffected(actor, "worldedit.set.done", 42));

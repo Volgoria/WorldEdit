@@ -69,13 +69,15 @@ les permissions introduites par le fork.
 | Permission | Commande | Remarque |
 |------------|----------|----------|
 | `worldedit.schematic.info` | `/schem info` | Lecture seule |
-| `worldedit.schematic.rename` ⚠️ | `/schem rename` | Déplace / renomme des fichiers partagés |
+| `worldedit.schematic.rename` ⚠️ | `/schem rename` | Déplace / renomme des fichiers partagés ; exige **aussi** `worldedit.schematic.delete` (l'ancien nom disparaît) |
 | `worldedit.schematic.copy` | `/schem copy` | Crée des fichiers |
 
 Rappels sur les permissions d'origine liées :
 
-- ⚠️ `worldedit.schematic.delete` permet `/schem delete` **et** est exigée pour **écraser** un
-  fichier existant avec `/schem save -f`, `/schem rename -f` et `/schem copy -f`.
+- ⚠️ `worldedit.schematic.delete` permet `/schem delete`, est exigée pour **tout** `/schem rename`
+  (renommer supprime l'ancien nom : `worldedit.schematic.rename` seule ne suffit pas), **et** pour
+  **écraser** un fichier existant avec `/schem save -f` et `/schem copy -f`. `/schem copy` sans
+  `-f` n'en a pas besoin.
 - Les nouveaux formats (`structure`, `obj`, `json`) passent par les permissions existantes
   `worldedit.schematic.save` / `worldedit.clipboard.save` et `worldedit.schematic.load` /
   `worldedit.clipboard.load`.
@@ -177,8 +179,8 @@ lp group admin permission set worldedit.brush.command true
 lp group admin permission set worldedit.brush.populateschem true
 lp group admin permission set worldedit.image.paste true
 lp group admin permission set worldedit.image.heightmap.import true
-lp group admin permission set worldedit.schematic.rename true
-lp group admin permission set worldedit.schematic.delete true      # suppression ET écrasement (-f)
+lp group admin permission set worldedit.schematic.rename true      # exige aussi schematic.delete
+lp group admin permission set worldedit.schematic.delete true      # suppression, renommage ET écrasement (-f)
 lp group admin permission set worldedit.history.list.other true
 ```
 

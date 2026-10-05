@@ -122,6 +122,18 @@ public final class CommandHelper {
     }
 
     /**
+     * Check whether an actor may rename schematic files. Renaming removes the
+     * original name, which is a deletion, so the delete permission is needed
+     * on top of the rename permission (copying does not need it).
+     *
+     * @param actor the actor
+     * @return true if the actor has both permissions
+     */
+    public static boolean canRenameSchematics(Actor actor) {
+        return actor.hasPermission("worldedit.schematic.rename") && actor.hasPermission("worldedit.schematic.delete");
+    }
+
+    /**
      * Expand the radii given to a shape command to one radius per axis.
      *
      * <p>Either a single radius, used for every axis, or exactly one radius
