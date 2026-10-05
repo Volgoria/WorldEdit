@@ -40,7 +40,9 @@ import java.util.List;
  *
  * <p>Only the air types are registered: every test registry agrees that they
  * are air and have no properties, so sharing them cannot leak state between
- * tests.</p>
+ * tests. Tests that need more vanilla types through {@code BlockTypes}
+ * (with materials of their own) are tagged {@code isolated-registry} and run
+ * in a JVM of their own by the {@code isolatedRegistryTest} task.</p>
  */
 public final class CommonBlockTypesSessionListener implements LauncherSessionListener {
 
