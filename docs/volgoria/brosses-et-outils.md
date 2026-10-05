@@ -227,6 +227,11 @@ Mettez les commandes entre guillemets si elles contiennent des options (`-h`...)
 est ajouté s'il manque. Seules les commandes WorldEdit sont exécutées (les commandes d'autres plugins
 ne passent pas par ce mécanisme).
 
+Les commandes s'exécutent hors de toute session d'édition de la brosse : chacune enregistre ses
+propres modifications dans l'historique, donc `//undo` annule la dernière commande lancée par la
+brosse (un clic qui lance plusieurs commandes demande autant de `//undo`). Le masque de brosse
+(`/mask`) ne s'applique pas à ces commandes.
+
 Sur Bukkit/Paper/Folia, chaque commande passe d'abord par l'événement `PlayerCommandPreprocessEvent`,
 comme si le joueur l'avait tapée : les plugins qui bloquent des commandes (drapeaux de région
 interdisant `//set`...) ou les journalisent s'appliquent aussi à la brosse. Une commande annulée par

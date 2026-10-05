@@ -48,6 +48,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * {@code {player}} are replaced. Commands run as the player using the brush,
  * so all the usual permission checks and limits apply to them.</p>
  *
+ * <p>The commands run outside of any edit session of the brush tool: each
+ * command records its own changes, so {@code //undo} undoes the last command
+ * run by the brush.</p>
+ *
  * <p>A {@link CommandBrushDispatchEvent} is posted before each command, so
  * platforms can apply the rules of their own command pipeline (for example
  * other plugins blocking or rewriting commands).</p>
@@ -157,6 +161,21 @@ public class CommandBrush implements PlayerBrush {
     @Override
     public void build(Player player, LocalSession session, EditSession editSession, BlockVector3 position,
                       @Nullable Pattern pattern, double size) {
+        run(player, position, size);
+    }
+
+    /**
+     * Run the commands of this brush at the given position.
+     *
+     * <p>Each command opens and remembers its own edit session, so this does not
+     * need one: the brush tool calls it without creating an edit session, which
+     * would otherwise stay open, empty, around the commands.</p>
+     *
+     * @param player the player using the brush
+     * @param position the targeted block
+     * @param size the brush size
+     */
+    public void run(Player player, BlockVector3 position, double size) {
         if (RUNNING.get()) {
             // A brush command ended up using a command brush again
             return;

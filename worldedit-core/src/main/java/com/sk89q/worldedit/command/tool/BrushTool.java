@@ -24,6 +24,7 @@ import com.sk89q.worldedit.LocalConfiguration;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.command.tool.brush.Brush;
+import com.sk89q.worldedit.command.tool.brush.CommandBrush;
 import com.sk89q.worldedit.command.tool.brush.PlayerBrush;
 import com.sk89q.worldedit.command.tool.brush.SphereBrush;
 import com.sk89q.worldedit.entity.Player;
@@ -228,6 +229,13 @@ public class BrushTool implements TraceTool {
 
         if (target == null) {
             player.printError(TranslatableComponent.of("worldedit.tool.no-block"));
+            return true;
+        }
+
+        if (brush instanceof CommandBrush commandBrush) {
+            // The commands create and remember their own edit sessions; one opened
+            // here would stay empty and only wrap them
+            commandBrush.run(player, target.toVector().toBlockPoint(), size);
             return true;
         }
 
