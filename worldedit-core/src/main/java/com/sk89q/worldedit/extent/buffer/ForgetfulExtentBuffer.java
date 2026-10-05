@@ -56,6 +56,16 @@ public class ForgetfulExtentBuffer extends AbstractDelegateExtent implements Pat
     private final Map<BlockVector3, BaseBlock> buffer = BlockMap.createForBaseBlock();
     private final Map<BlockVector3, BiomeType> biomeBuffer = BlockMap.create();
     private final Mask mask;
+    // Bounds of the positions changed so far, valid when hasBounds. Kept as ints so
+    // that a change does not allocate new min and max vectors; min and max are built
+    // from them on demand and kept until the bounds change.
+    private boolean hasBounds;
+    private int minX;
+    private int minY;
+    private int minZ;
+    private int maxX;
+    private int maxY;
+    private int maxZ;
     private BlockVector3 min = null;
     private BlockVector3 max = null;
 
@@ -82,19 +92,59 @@ public class ForgetfulExtentBuffer extends AbstractDelegateExtent implements Pat
     }
 
     private void updateBounds(BlockVector3 position) {
-        // Update minimum
-        if (min == null) {
+        int x = position.x();
+        int y = position.y();
+        int z = position.z();
+        if (!hasBounds) {
+            hasBounds = true;
+            minX = x;
+            minY = y;
+            minZ = z;
+            maxX = x;
+            maxY = y;
+            maxZ = z;
+            // the first position is both bounds, as before
             min = position;
-        } else {
-            min = min.getMinimum(position);
+            max = position;
+            return;
         }
 
-        // Update maximum
-        if (max == null) {
-            max = position;
-        } else {
-            max = max.getMaximum(position);
+        if (x < minX || y < minY || z < minZ) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            minZ = Math.min(minZ, z);
+            min = null;
         }
+        if (x > maxX || y > maxY || z > maxZ) {
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+            maxZ = Math.max(maxZ, z);
+            max = null;
+        }
+    }
+
+    private BlockVector3 min() {
+        if (!hasBounds) {
+            return BlockVector3.ZERO;
+        }
+        BlockVector3 min = this.min;
+        if (min == null) {
+            min = BlockVector3.at(minX, minY, minZ);
+            this.min = min;
+        }
+        return min;
+    }
+
+    private BlockVector3 max() {
+        if (!hasBounds) {
+            return BlockVector3.ZERO;
+        }
+        BlockVector3 max = this.max;
+        if (max == null) {
+            max = BlockVector3.at(maxX, maxY, maxZ);
+            this.max = max;
+        }
+        return max;
     }
 
     @Override
@@ -150,12 +200,12 @@ public class ForgetfulExtentBuffer extends AbstractDelegateExtent implements Pat
         return new AbstractFlatRegion(null) {
             @Override
             public BlockVector3 getMinimumPoint() {
-                return min != null ? min : BlockVector3.ZERO;
+                return min();
             }
 
             @Override
             public BlockVector3 getMaximumPoint() {
-                return max != null ? max : BlockVector3.ZERO;
+                return max();
             }
 
             @Override
