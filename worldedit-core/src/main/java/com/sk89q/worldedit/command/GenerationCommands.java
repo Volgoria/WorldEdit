@@ -26,7 +26,6 @@ import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.command.util.CommandPermissions;
 import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.command.util.Logging;
-import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.function.generator.shape.ArchShape;
 import com.sk89q.worldedit.function.generator.shape.DiskShape;
@@ -58,6 +57,11 @@ import org.enginehub.piston.annotation.param.Switch;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.sk89q.worldedit.command.util.CommandHelper.checkFinite;
+import static com.sk89q.worldedit.command.util.CommandHelper.checkRadii;
+import static com.sk89q.worldedit.command.util.CommandHelper.expandRadii;
+import static com.sk89q.worldedit.command.util.CommandHelper.findFreePosition;
+import static com.sk89q.worldedit.command.util.CommandHelper.printAffected;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.ALL;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.PLACEMENT;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.POSITION;
@@ -114,28 +118,16 @@ public class GenerationCommands {
                        int height,
                    @Switch(name = 'h', desc = "Make a hollow cylinder")
                        boolean hollow) throws WorldEditException {
-        double radiusX;
-        double radiusZ;
-        switch (radii.size()) {
-            case 1 -> radiusX = radiusZ = Math.max(1, radii.get(0));
-            case 2 -> {
-                radiusX = Math.max(1, radii.get(0));
-                radiusZ = Math.max(1, radii.get(1));
-            }
-            default -> {
-                actor.printError(TranslatableComponent.of("worldedit.cyl.invalid-radius"));
-                return 0;
-            }
+        double[] radiusXZ = expandRadii(radii, 2, 1);
+        if (radiusXZ == null) {
+            actor.printError(TranslatableComponent.of("worldedit.cyl.invalid-radius"));
+            return 0;
         }
-
-        worldEdit.checkMaxRadius(radiusX);
-        worldEdit.checkMaxRadius(radiusZ);
-        worldEdit.checkMaxRadius(height);
+        checkRadii(worldEdit, radiusXZ[0], radiusXZ[1], height);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
-        int affected = editSession.makeCylinder(pos, pattern, radiusX, radiusZ, height, !hollow);
-        actor.printInfo(TranslatableComponent.of("worldedit.cyl.created", TextComponent.of(affected)));
-        return affected;
+        int affected = editSession.makeCylinder(pos, pattern, radiusXZ[0], radiusXZ[1], height, !hollow);
+        return printAffected(actor, "worldedit.cyl.created", affected);
     }
 
     @Command(
@@ -157,28 +149,17 @@ public class GenerationCommands {
                    @Arg(desc = "Thickness of the hollow cone", def = "1")
                        double thickness
     ) throws WorldEditException {
-        double radiusX;
-        double radiusZ;
-        switch (radii.size()) {
-            case 1 -> radiusX = radiusZ = Math.max(1, radii.get(0));
-            case 2 -> {
-                radiusX = Math.max(1, radii.get(0));
-                radiusZ = Math.max(1, radii.get(1));
-            }
-            default -> {
-                actor.printError(TranslatableComponent.of("worldedit.cone.invalid-radius"));
-                return 0;
-            }
+        double[] radiusXZ = expandRadii(radii, 2, 1);
+        if (radiusXZ == null) {
+            actor.printError(TranslatableComponent.of("worldedit.cone.invalid-radius"));
+            return 0;
         }
-
-        worldEdit.checkMaxRadius(radiusX);
-        worldEdit.checkMaxRadius(radiusZ);
-        worldEdit.checkMaxRadius(height);
+        checkRadii(worldEdit, radiusXZ[0], radiusXZ[1], height);
+        checkFinite(thickness);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
-        int affected = editSession.makeCone(pos, pattern, radiusX, radiusZ, height, !hollow, thickness);
-        actor.printInfo(TranslatableComponent.of("worldedit.cone.created", TextComponent.of(affected)));
-        return affected;
+        int affected = editSession.makeCone(pos, pattern, radiusXZ[0], radiusXZ[1], height, !hollow, thickness);
+        return printAffected(actor, "worldedit.cone.created", affected);
     }
 
     @Command(
@@ -214,37 +195,21 @@ public class GenerationCommands {
                           boolean raised,
                       @Switch(name = 'h', desc = "Make a hollow sphere")
                           boolean hollow) throws WorldEditException {
-        double radiusX;
-        double radiusY;
-        double radiusZ;
-        switch (radii.size()) {
-            case 1 -> radiusX = radiusY = radiusZ = Math.max(0, radii.get(0));
-            case 3 -> {
-                radiusX = Math.max(0, radii.get(0));
-                radiusY = Math.max(0, radii.get(1));
-                radiusZ = Math.max(0, radii.get(2));
-            }
-            default -> {
-                actor.printError(TranslatableComponent.of("worldedit.sphere.invalid-radius"));
-                return 0;
-            }
+        double[] radiusXYZ = expandRadii(radii, 3, 0);
+        if (radiusXYZ == null) {
+            actor.printError(TranslatableComponent.of("worldedit.sphere.invalid-radius"));
+            return 0;
         }
-
-        worldEdit.checkMaxRadius(radiusX);
-        worldEdit.checkMaxRadius(radiusY);
-        worldEdit.checkMaxRadius(radiusZ);
+        checkRadii(worldEdit, radiusXYZ);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
         if (raised) {
-            pos = pos.add(0, (int) radiusY, 0);
+            pos = pos.add(0, (int) radiusXYZ[1], 0);
         }
 
-        int affected = editSession.makeSphere(pos, pattern, radiusX, radiusY, radiusZ, !hollow);
-        if (actor instanceof Player player) {
-            player.findFreePosition();
-        }
-        actor.printInfo(TranslatableComponent.of("worldedit.sphere.created", TextComponent.of(affected)));
-        return affected;
+        int affected = editSession.makeSphere(pos, pattern, radiusXYZ[0], radiusXYZ[1], radiusXYZ[2], !hollow);
+        findFreePosition(actor);
+        return printAffected(actor, "worldedit.sphere.created", affected);
     }
 
     @Command(
@@ -264,8 +229,7 @@ public class GenerationCommands {
         worldEdit.checkMaxRadius(size);
         density /= 100;
         int affected = editSession.makeForest(session.getPlacementPosition(actor), size, density, type);
-        actor.printInfo(TranslatableComponent.of("worldedit.forestgen.created", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.forestgen.created", affected);
     }
 
     @Command(
@@ -279,8 +243,7 @@ public class GenerationCommands {
                             int size) throws WorldEditException {
         worldEdit.checkMaxRadius(size);
         int affected = editSession.makePumpkinPatches(session.getPlacementPosition(actor), size);
-        actor.printInfo(TranslatableComponent.of("worldedit.pumpkins.created", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.pumpkins.created", affected);
     }
 
     @Command(
@@ -347,11 +310,8 @@ public class GenerationCommands {
         worldEdit.checkMaxRadius(size);
         BlockVector3 pos = session.getPlacementPosition(actor);
         int affected = editSession.makePyramid(pos, pattern, size, !hollow);
-        if (actor instanceof Player player) {
-            player.findFreePosition();
-        }
-        actor.printInfo(TranslatableComponent.of("worldedit.pyramid.created", TextComponent.of(affected)));
-        return affected;
+        findFreePosition(actor);
+        return printAffected(actor, "worldedit.pyramid.created", affected);
     }
 
     @Command(
@@ -375,16 +335,13 @@ public class GenerationCommands {
                          boolean hollow) throws WorldEditException {
         checkCommandArgument(majorRadius >= 0, "Major radius must be at least 0");
         checkCommandArgument(minorRadius >= 0, "Minor radius must be at least 0");
-        worldEdit.checkMaxRadius(majorRadius + minorRadius);
+        checkRadii(worldEdit, majorRadius + minorRadius);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
         GeneratedShape shape = new TorusShape(majorRadius, minorRadius, ShapeAxis.fromDirection(direction), hollow);
         int affected = shape.generate(editSession, pos, pattern);
-        if (actor instanceof Player player) {
-            player.findFreePosition();
-        }
-        actor.printInfo(TranslatableComponent.of("worldedit.torus.created", TextComponent.of(affected)));
-        return affected;
+        findFreePosition(actor);
+        return printAffected(actor, "worldedit.torus.created", affected);
     }
 
     @Command(
@@ -407,30 +364,18 @@ public class GenerationCommands {
                         int thickness,
                     @Switch(name = 'h', desc = "Only generate the rim of the disk")
                         boolean hollow) throws WorldEditException {
-        double radiusU;
-        double radiusV;
-        switch (radii.size()) {
-            case 1 -> radiusU = radiusV = Math.max(0, radii.get(0));
-            case 2 -> {
-                radiusU = Math.max(0, radii.get(0));
-                radiusV = Math.max(0, radii.get(1));
-            }
-            default -> {
-                actor.printError(TranslatableComponent.of("worldedit.disk.invalid-radius"));
-                return 0;
-            }
+        double[] radiusUV = expandRadii(radii, 2, 0);
+        if (radiusUV == null) {
+            actor.printError(TranslatableComponent.of("worldedit.disk.invalid-radius"));
+            return 0;
         }
         checkCommandArgument(thickness >= 1, "Thickness must be at least 1");
-
-        worldEdit.checkMaxRadius(radiusU);
-        worldEdit.checkMaxRadius(radiusV);
-        worldEdit.checkMaxRadius(thickness);
+        checkRadii(worldEdit, radiusUV[0], radiusUV[1], thickness);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
-        GeneratedShape shape = new DiskShape(radiusU, radiusV, thickness, ShapeAxis.fromDirection(direction), hollow);
+        GeneratedShape shape = new DiskShape(radiusUV[0], radiusUV[1], thickness, ShapeAxis.fromDirection(direction), hollow);
         int affected = shape.generate(editSession, pos, pattern);
-        actor.printInfo(TranslatableComponent.of("worldedit.disk.created", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.disk.created", affected);
     }
 
     @Command(
@@ -449,34 +394,18 @@ public class GenerationCommands {
                         boolean hollow,
                     @Switch(name = 'i', desc = "Make an upside-down dome (a bowl)")
                         boolean inverted) throws WorldEditException {
-        double radiusX;
-        double radiusY;
-        double radiusZ;
-        switch (radii.size()) {
-            case 1 -> radiusX = radiusY = radiusZ = Math.max(0, radii.get(0));
-            case 3 -> {
-                radiusX = Math.max(0, radii.get(0));
-                radiusY = Math.max(0, radii.get(1));
-                radiusZ = Math.max(0, radii.get(2));
-            }
-            default -> {
-                actor.printError(TranslatableComponent.of("worldedit.dome.invalid-radius"));
-                return 0;
-            }
+        double[] radiusXYZ = expandRadii(radii, 3, 0);
+        if (radiusXYZ == null) {
+            actor.printError(TranslatableComponent.of("worldedit.dome.invalid-radius"));
+            return 0;
         }
-
-        worldEdit.checkMaxRadius(radiusX);
-        worldEdit.checkMaxRadius(radiusY);
-        worldEdit.checkMaxRadius(radiusZ);
+        checkRadii(worldEdit, radiusXYZ);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
-        GeneratedShape shape = new DomeShape(radiusX, radiusY, radiusZ, inverted, hollow);
+        GeneratedShape shape = new DomeShape(radiusXYZ[0], radiusXYZ[1], radiusXYZ[2], inverted, hollow);
         int affected = shape.generate(editSession, pos, pattern);
-        if (actor instanceof Player player) {
-            player.findFreePosition();
-        }
-        actor.printInfo(TranslatableComponent.of("worldedit.dome.created", TextComponent.of(affected)));
-        return affected;
+        findFreePosition(actor);
+        return printAffected(actor, "worldedit.dome.created", affected);
     }
 
     @Command(
@@ -503,15 +432,12 @@ public class GenerationCommands {
         checkCommandArgument(height >= 1, "Height must be at least 1");
         checkCommandArgument(turns >= 0, "Turns must be at least 0");
         checkCommandArgument(thickness >= 1, "Thickness must be at least 1");
-        worldEdit.checkMaxRadius(radius + thickness / 2);
-        worldEdit.checkMaxRadius(height);
-        worldEdit.checkMaxRadius(turns);
+        checkRadii(worldEdit, radius + thickness / 2, height, turns);
 
         BlockVector3 pos = session.getPlacementPosition(actor);
         GeneratedShape shape = new HelixShape(radius, height, turns, thickness, doubleHelix ? 2 : 1);
         int affected = shape.generate(editSession, pos, pattern);
-        actor.printInfo(TranslatableComponent.of("worldedit.helix.created", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.helix.created", affected);
     }
 
     @Command(
@@ -539,9 +465,7 @@ public class GenerationCommands {
         checkCommandArgument(height >= 1, "Height must be at least 1");
         checkCommandArgument(thickness >= 1, "Thickness must be at least 1");
         checkCommandArgument(depth >= 1, "Depth must be at least 1");
-        worldEdit.checkMaxRadius(width / 2.0);
-        worldEdit.checkMaxRadius(height);
-        worldEdit.checkMaxRadius(depth);
+        checkRadii(worldEdit, width / 2.0, height, depth);
 
         ShapeAxis axis = ShapeAxis.fromHorizontalDirection(direction);
         if (axis == null) {
@@ -552,8 +476,7 @@ public class GenerationCommands {
         BlockVector3 pos = session.getPlacementPosition(actor);
         GeneratedShape shape = new ArchShape(width, height, thickness, depth, axis);
         int affected = shape.generate(editSession, pos, pattern);
-        actor.printInfo(TranslatableComponent.of("worldedit.arch.created", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.arch.created", affected);
     }
 
     @Command(
@@ -582,11 +505,8 @@ public class GenerationCommands {
 
         try {
             final int affected = editSession.makeShape(region, transform, pattern, String.join(" ", expression), hollow, session.getTimeout());
-            if (actor instanceof Player player) {
-                player.findFreePosition();
-            }
-            actor.printInfo(TranslatableComponent.of("worldedit.generate.created", TextComponent.of(affected)));
-            return affected;
+            findFreePosition(actor);
+            return printAffected(actor, "worldedit.generate.created", affected);
         } catch (ExpressionException e) {
             actor.printError(TextComponent.of(e.getMessage()));
             return 0;
@@ -619,8 +539,7 @@ public class GenerationCommands {
 
         try {
             final int affected = editSession.makeBiomeShape(region, transform, target, String.join(" ", expression), hollow, session.getTimeout());
-            actor.printInfo(TranslatableComponent.of("worldedit.generatebiome.changed", TextComponent.of(affected)));
-            return affected;
+            return printAffected(actor, "worldedit.generatebiome.changed", affected);
         } catch (ExpressionException e) {
             actor.printError(TextComponent.of(e.getMessage()));
             return 0;
