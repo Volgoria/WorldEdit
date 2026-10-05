@@ -81,10 +81,10 @@ erreur et rouvre le menu :
 | Fichier existant | Comme ci-dessus, plus une extension facultative (`ile.png`), 80 caractères max |
 | Liste de fichiers | Fichiers ou dossiers séparés par `,` (ou `#clipboard`), 256 caractères max |
 | Nombre | Entier ≥ -1 (-1 = pas de limite) |
-| Pattern / masque | Un seul argument **sans espace**, 256 caractères max (WorldEdit valide ensuite la syntaxe) |
+| Pattern / masque | Non vide, 256 caractères max, sans guillemet `"`, antislash `\`, code couleur `§` ni caractère de contrôle ; les **espaces sont acceptés** (les espaces multiples sont réduits à un seul) et la valeur est transmise entre guillemets si elle en contient (WorldEdit valide ensuite la syntaxe) |
 
-Conséquence : les intersections de masques (qui contiennent des espaces) ne peuvent pas être
-saisies dans le menu ; utilisez la commande directement.
+Les intersections de masques (séparées par des espaces, par ex. `stone >grass_block`) peuvent donc
+être saisies dans le menu.
 
 ### Choix mémorisés
 

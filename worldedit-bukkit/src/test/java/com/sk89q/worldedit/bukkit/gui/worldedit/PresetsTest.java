@@ -59,7 +59,7 @@ class PresetsTest {
         assertNotNull(built);
         assertTrue(built.startsWith("#"), built);
         assertFalse(built.contains("{") || built.contains("}"), built);
-        assertTrue(GuiCommands.isSingleArgument(built), built);
+        assertTrue(GuiCommands.isValidPatternOrMask(built), built);
     }
 
     @Test
@@ -87,7 +87,7 @@ class PresetsTest {
         String built = preset.build(TWO);
         assertNotNull(built);
         assertFalse(built.contains("{") || built.contains("}"), built);
-        assertTrue(GuiCommands.isSingleArgument(built), built);
+        assertTrue(GuiCommands.isValidPatternOrMask(built), built);
     }
 
     @Test

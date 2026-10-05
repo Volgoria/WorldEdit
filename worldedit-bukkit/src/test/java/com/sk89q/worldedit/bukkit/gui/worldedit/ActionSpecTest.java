@@ -126,8 +126,12 @@ class ActionSpecTest {
         assertEquals("250", InputKind.NUMBER.toArgument(" 250 "));
         assertNull(InputKind.NUMBER.toArgument("1e5"));
         assertNull(InputKind.NUMBER.toArgument("-7"));
-        assertEquals("#wall", InputKind.ARGUMENT.toArgument("#wall"));
-        assertNull(InputKind.ARGUMENT.toArgument("stone dirt"));
+        assertEquals("#wall", InputKind.PATTERN_OR_MASK.toArgument("#wall"));
+        // mask intersections are separated with spaces
+        assertEquals("stone >grass_block", InputKind.PATTERN_OR_MASK.toArgument(" stone  >grass_block "));
+        assertNull(InputKind.PATTERN_OR_MASK.toArgument("stone \"dirt\""));
+        assertNull(InputKind.PATTERN_OR_MASK.toArgument("stone\\dirt"));
+        assertNull(InputKind.PATTERN_OR_MASK.toArgument("§4stone"));
     }
 
     @Test

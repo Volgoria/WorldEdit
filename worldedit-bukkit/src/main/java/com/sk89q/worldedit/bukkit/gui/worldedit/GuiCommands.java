@@ -48,6 +48,11 @@ public final class GuiCommands {
     public static final int MAX_TEXT_LENGTH = 200;
 
     /**
+     * The longest pattern or mask accepted from chat or built by a preset.
+     */
+    public static final int MAX_PATTERN_LENGTH = 256;
+
+    /**
      * The schematic formats offered when saving, the first being the default.
      */
     public static final List<String> SAVE_FORMATS = List.of("sponge", "structure", "obj", "json");
@@ -295,7 +300,7 @@ public final class GuiCommands {
      * @return the command
      */
     public static String globalMask(@Nullable String mask) {
-        return mask == null || mask.isBlank() ? "//gmask" : "//gmask " + mask;
+        return mask == null || mask.isBlank() ? "//gmask" : "//gmask " + quote(mask);
     }
 
     /**
@@ -305,7 +310,7 @@ public final class GuiCommands {
      * @return the command
      */
     public static String brushMask(@Nullable String mask) {
-        return mask == null || mask.isBlank() ? "/mask" : "/mask " + mask;
+        return mask == null || mask.isBlank() ? "/mask" : "/mask " + quote(mask);
     }
 
     /**
@@ -510,14 +515,30 @@ public final class GuiCommands {
     }
 
     /**
-     * Check whether a pattern or mask typed in chat looks usable as a single
-     * command argument. WorldEdit itself performs the real validation.
+     * Check whether a pattern or mask typed in chat is safe to put in a
+     * command. Spaces are allowed (masks are intersected with spaces), since
+     * the value is {@linkplain #quote(String) quoted} when the command is
+     * built; quotes, backslashes, colour codes and control characters are
+     * not. WorldEdit itself performs the real validation.
+     *
+     * @param input the input, see {@link #normalizePatternOrMask(String)}
+     * @return true if it can be used
+     */
+    public static boolean isValidPatternOrMask(String input) {
+        return !input.isBlank() && input.length() <= MAX_PATTERN_LENGTH
+            && input.chars().noneMatch(c -> c == '"' || c == '\\' || c == '§' || Character.isISOControl(c)
+                || (c != ' ' && (Character.isWhitespace(c) || Character.isSpaceChar(c))));
+    }
+
+    /**
+     * Trim a pattern or mask typed in chat and collapse runs of spaces, since
+     * WorldEdit separates arguments with single spaces.
      *
      * @param input the input
-     * @return true if it is non-empty and contains no whitespace
+     * @return the normalised value
      */
-    public static boolean isSingleArgument(String input) {
-        return !input.isEmpty() && input.length() <= 256 && input.chars().noneMatch(Character::isWhitespace);
+    public static String normalizePatternOrMask(String input) {
+        return input.trim().replaceAll(" {2,}", " ");
     }
 
     /**

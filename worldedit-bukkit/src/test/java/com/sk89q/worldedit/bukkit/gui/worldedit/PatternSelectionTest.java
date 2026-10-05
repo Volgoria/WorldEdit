@@ -94,7 +94,10 @@ class PatternSelectionTest {
     void rejectsInvalidInput() {
         PatternSelection selection = new PatternSelection();
         assertThrows(IllegalArgumentException.class, () -> selection.set(" "));
-        assertThrows(IllegalArgumentException.class, () -> selection.setCustom("stone dirt"));
+        assertThrows(IllegalArgumentException.class, () -> selection.setCustom("stone \"dirt\""));
         assertEquals("stone", selection.toPattern());
+        // spaces are fine, the pattern is quoted when the command is built
+        selection.setCustom(" 50%stone,50%dirt  ");
+        assertEquals("50%stone,50%dirt", selection.toPattern());
     }
 }

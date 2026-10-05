@@ -167,11 +167,30 @@ class GuiCommandsTest {
     }
 
     @Test
-    void singleArgument() {
-        assertTrue(GuiCommands.isSingleArgument("50%stone,50%dirt"));
-        assertTrue(GuiCommands.isSingleArgument("##wool"));
-        assertFalse(GuiCommands.isSingleArgument(""));
-        assertFalse(GuiCommands.isSingleArgument("stone dirt"));
+    void patternOrMask() {
+        assertTrue(GuiCommands.isValidPatternOrMask("50%stone,50%dirt"));
+        assertTrue(GuiCommands.isValidPatternOrMask("##wool"));
+        assertTrue(GuiCommands.isValidPatternOrMask("stone >grass_block"));
+        assertFalse(GuiCommands.isValidPatternOrMask(""));
+        assertFalse(GuiCommands.isValidPatternOrMask("  "));
+        assertFalse(GuiCommands.isValidPatternOrMask("stone\"dirt"));
+        assertFalse(GuiCommands.isValidPatternOrMask("stone\\dirt"));
+        assertFalse(GuiCommands.isValidPatternOrMask("§cstone"));
+        assertFalse(GuiCommands.isValidPatternOrMask("stone\tdirt"));
+        assertFalse(GuiCommands.isValidPatternOrMask("stone\u00a0dirt"));
+        assertFalse(GuiCommands.isValidPatternOrMask("x".repeat(GuiCommands.MAX_PATTERN_LENGTH + 1)));
+        assertEquals("stone >grass_block", GuiCommands.normalizePatternOrMask("  stone   >grass_block "));
+    }
+
+    @Test
+    void masksWithSpacesAreQuoted() {
+        assertEquals("//gmask \"stone >grass_block\"", GuiCommands.globalMask("stone >grass_block"));
+        assertEquals("/mask \"stone >grass_block\"", GuiCommands.brushMask("stone >grass_block"));
+        assertEquals("//gmask stone", GuiCommands.globalMask("stone"));
+        assertEquals("//replace \"stone >grass_block\" dirt",
+            GuiCommands.selection(SelectionAction.REPLACE, "dirt", "stone >grass_block"));
+        assertEquals("//replace stone \"dirt !air\"",
+            GuiCommands.selection(SelectionAction.REPLACE, "dirt !air", "stone"));
     }
 
     @Test

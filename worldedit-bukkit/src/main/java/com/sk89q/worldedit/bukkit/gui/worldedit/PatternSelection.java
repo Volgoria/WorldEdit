@@ -85,8 +85,9 @@ public final class PatternSelection {
      * @param pattern the pattern
      */
     public void setCustom(String pattern) {
-        checkArgument(GuiCommands.isSingleArgument(pattern), "pattern must be a single argument");
-        custom = pattern;
+        String normalized = GuiCommands.normalizePatternOrMask(pattern);
+        checkArgument(GuiCommands.isValidPatternOrMask(normalized), "invalid pattern");
+        custom = normalized;
     }
 
     /**

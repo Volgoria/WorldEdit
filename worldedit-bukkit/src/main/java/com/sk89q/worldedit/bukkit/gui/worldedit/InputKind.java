@@ -50,9 +50,11 @@ public enum InputKind {
      */
     NUMBER("Please type a whole number, -1 for no limit."),
     /**
-     * A single argument without spaces, such as a pattern or a mask.
+     * A pattern or a mask. Spaces are allowed (masks are intersected with
+     * spaces); the value is quoted when the command is built.
      */
-    ARGUMENT("This value cannot contain spaces.");
+    PATTERN_OR_MASK("Patterns and masks cannot contain quotes, backslashes or colour codes, and are limited to "
+        + GuiCommands.MAX_PATTERN_LENGTH + " characters.");
 
     private final String error;
 
@@ -87,7 +89,10 @@ public enum InputKind {
                 Integer value = GuiCommands.parseLimit(input);
                 yield value == null ? null : value.toString();
             }
-            case ARGUMENT -> GuiCommands.isSingleArgument(input) ? input : null;
+            case PATTERN_OR_MASK -> {
+                String value = GuiCommands.normalizePatternOrMask(input);
+                yield GuiCommands.isValidPatternOrMask(value) ? value : null;
+            }
         };
     }
 }

@@ -137,7 +137,7 @@ final class PatternMenu extends PaginatedMenu<Material> {
                 Text.WHITE + "50%stone,50%andesite" + Text.GRAY + " or " + Text.WHITE + "##wool",
                 Text.GRAY + "Presets: see Patterns & Masks.",
                 "", Text.YELLOW + "Click to type it in chat")
-            .build(), (player, _) -> gui.ask(player, "Type a WorldEdit pattern:", InputKind.ARGUMENT, input -> {
+            .build(), (player, _) -> gui.ask(player, "Type a WorldEdit pattern:", InputKind.PATTERN_OR_MASK, input -> {
                 gui.state(player).getPattern().setCustom(input);
                 Buttons.sendMessage(player, "Pattern is now " + Text.WHITE + input);
                 open(player);

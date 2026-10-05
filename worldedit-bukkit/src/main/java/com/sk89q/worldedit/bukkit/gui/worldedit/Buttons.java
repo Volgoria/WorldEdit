@@ -166,7 +166,7 @@ final class Buttons {
                     reopen.accept(player);
                     return;
                 }
-                gui.ask(player, "Type a WorldEdit mask, e.g. 'grass_block,dirt':", InputKind.ARGUMENT, input -> {
+                gui.ask(player, "Type a WorldEdit mask, e.g. 'grass_block,dirt':", InputKind.PATTERN_OR_MASK, input -> {
                     gui.state(player).setMask(input);
                     sendMessage(player, "Replace mask is now " + Text.WHITE + input);
                     reopen.accept(player);

@@ -137,7 +137,7 @@ final class PresetMenu extends Menu {
     }
 
     private void usePattern(Player player, String built) {
-        if (!GuiCommands.isSingleArgument(built)) {
+        if (!GuiCommands.isValidPatternOrMask(built)) {
             Buttons.sendMessage(player, Text.RED + "That pattern is too long.");
             return;
         }
@@ -147,7 +147,7 @@ final class PresetMenu extends Menu {
     }
 
     private void useMask(Player player, String built, ClickType click) {
-        if (!GuiCommands.isSingleArgument(built)) {
+        if (!GuiCommands.isValidPatternOrMask(built)) {
             Buttons.sendMessage(player, Text.RED + "That mask is too long.");
             return;
         }

@@ -32,10 +32,11 @@ import javax.annotation.Nullable;
  * <p>Supported placeholders:</p>
  * <ul>
  *     <li>{@code {h}} - {@code "-h "} when hollow is requested, otherwise nothing</li>
- *     <li>{@code {pattern}} - the selected pattern</li>
+ *     <li>{@code {pattern}} - the selected pattern, quoted if it contains spaces</li>
  *     <li>{@code {layers}} - the selected blocks separated by spaces, or the
  *     pattern if it was typed by hand</li>
- *     <li>{@code {mask}} - the selected mask followed by a space, or nothing</li>
+ *     <li>{@code {mask}} - the selected mask (quoted if it contains spaces)
+ *     followed by a space, or nothing</li>
  *     <li>{@code {size}} - the size</li>
  *     <li>{@code {size-1}} - the size minus one, at least 0</li>
  *     <li>{@code {double}} - twice the size</li>
@@ -62,10 +63,10 @@ final class CommandTemplate {
     static String expand(String template, CommandContext context, @Nullable String input) {
         Map<String, String> values = new HashMap<>();
         values.put("h", context.hollow() ? "-h " : "");
-        values.put("pattern", context.pattern());
-        values.put("layers", context.layers());
+        values.put("pattern", GuiCommands.quote(context.pattern()));
+        values.put("layers", context.blocks().isEmpty() ? GuiCommands.quote(context.pattern()) : context.layers());
         String mask = context.mask();
-        values.put("mask", mask == null || mask.isBlank() ? "" : mask + " ");
+        values.put("mask", mask == null || mask.isBlank() ? "" : GuiCommands.quote(mask) + " ");
         int size = context.size();
         values.put("size", Integer.toString(size));
         values.put("size-1", Integer.toString(Math.max(0, size - 1)));
