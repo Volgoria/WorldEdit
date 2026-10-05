@@ -33,6 +33,7 @@ import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BaseBlock;
+import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 
 import java.util.ArrayList;
@@ -46,6 +47,9 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class ChangeSetExtent extends AbstractDelegateExtent {
 
+    // Same as getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private final ChangeSet changeSet;
     private boolean enabled;
 
@@ -68,6 +72,7 @@ public class ChangeSetExtent extends AbstractDelegateExtent {
      */
     public ChangeSetExtent(Extent extent, ChangeSet changeSet, boolean enabled) {
         super(extent);
+        this.extent = extent;
         checkNotNull(changeSet);
         this.changeSet = changeSet;
         this.enabled = true;
@@ -93,12 +98,22 @@ public class ChangeSetExtent extends AbstractDelegateExtent {
     }
 
     @Override
+    public BlockState getBlock(BlockVector3 position) {
+        return extent.getBlock(position);
+    }
+
+    @Override
+    public BaseBlock getFullBlock(BlockVector3 position) {
+        return extent.getFullBlock(position);
+    }
+
+    @Override
     public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 location, B block) throws WorldEditException {
         if (enabled) {
             BaseBlock previous = getFullBlock(location);
             changeSet.add(new BlockChange(location, previous, block));
         }
-        return super.setBlock(location, block);
+        return extent.setBlock(location, block);
     }
 
     @Override

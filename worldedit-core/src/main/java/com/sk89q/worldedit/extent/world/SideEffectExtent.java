@@ -30,6 +30,7 @@ import com.sk89q.worldedit.util.SideEffectSet;
 import com.sk89q.worldedit.util.collection.BlockMap;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
+import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 
@@ -84,6 +85,18 @@ public class SideEffectExtent extends AbstractDelegateExtent {
 
     public void setSideEffectSet(SideEffectSet sideEffectSet) {
         this.sideEffectSet = sideEffectSet;
+    }
+
+    // The world is getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    @Override
+    public BlockState getBlock(BlockVector3 position) {
+        return world.getBlock(position);
+    }
+
+    @Override
+    public BaseBlock getFullBlock(BlockVector3 position) {
+        return world.getFullBlock(position);
     }
 
     @Override

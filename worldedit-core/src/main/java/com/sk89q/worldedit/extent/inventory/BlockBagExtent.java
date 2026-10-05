@@ -23,6 +23,7 @@ import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.extent.AbstractDelegateExtent;
 import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockType;
@@ -36,6 +37,9 @@ import javax.annotation.Nullable;
  */
 public class BlockBagExtent extends AbstractDelegateExtent {
 
+    // Same as getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private Map<BlockType, Integer> missingBlocks = new HashMap<>();
     private BlockBag blockBag;
 
@@ -47,7 +51,18 @@ public class BlockBagExtent extends AbstractDelegateExtent {
      */
     public BlockBagExtent(Extent extent, @Nullable BlockBag blockBag) {
         super(extent);
+        this.extent = extent;
         this.blockBag = blockBag;
+    }
+
+    @Override
+    public BlockState getBlock(BlockVector3 position) {
+        return extent.getBlock(position);
+    }
+
+    @Override
+    public BaseBlock getFullBlock(BlockVector3 position) {
+        return extent.getFullBlock(position);
     }
 
     /**
@@ -111,6 +126,6 @@ public class BlockBagExtent extends AbstractDelegateExtent {
             }
         }
 
-        return super.setBlock(position, block);
+        return extent.setBlock(position, block);
     }
 }

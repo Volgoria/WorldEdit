@@ -35,6 +35,10 @@ import javax.annotation.Nullable;
  */
 public class LastAccessExtentCache extends AbstractDelegateExtent {
 
+    // Same as getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
+
     // The last block and full block read, each with its position (null when
     // nothing is cached). Plain fields rather than holder objects, so that a
     // cache miss does not allocate: every block an EditSession changes misses.
@@ -50,6 +54,7 @@ public class LastAccessExtentCache extends AbstractDelegateExtent {
      */
     public LastAccessExtentCache(Extent extent) {
         super(extent);
+        this.extent = extent;
     }
 
     @Override
@@ -61,7 +66,7 @@ public class LastAccessExtentCache extends AbstractDelegateExtent {
         } else if (lastFullBlockPosition != null && lastFullBlockPosition.equals(position)) {
             return lastFullBlock.toImmutableState();
         } else {
-            BlockState block = super.getBlock(position);
+            BlockState block = extent.getBlock(position);
             this.lastBlockPosition = position;
             this.lastBlock = block;
             return block;
@@ -74,7 +79,7 @@ public class LastAccessExtentCache extends AbstractDelegateExtent {
         if (lastFullBlockPosition != null && lastFullBlockPosition.equals(position)) {
             return lastFullBlock;
         } else {
-            BaseBlock block = super.getFullBlock(position);
+            BaseBlock block = extent.getFullBlock(position);
             this.lastFullBlockPosition = position;
             this.lastFullBlock = block;
             return block;
@@ -83,7 +88,7 @@ public class LastAccessExtentCache extends AbstractDelegateExtent {
 
     @Override
     public <T extends BlockStateHolder<T>> boolean setBlock(BlockVector3 location, T block) throws WorldEditException {
-        if (super.setBlock(location, block)) {
+        if (extent.setBlock(location, block)) {
             if (lastFullBlockPosition != null && lastFullBlockPosition.equals(location)) {
                 this.lastFullBlockPosition = location;
                 this.lastFullBlock = block.toBaseBlock();

@@ -34,6 +34,9 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 public class BlockChangeLimiter extends AbstractDelegateExtent {
 
+    // Same as getExtent(), called directly so that this class has a call site of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private int limit;
     private int count = 0;
 
@@ -46,6 +49,7 @@ public class BlockChangeLimiter extends AbstractDelegateExtent {
     @SuppressWarnings("this-escape") // Unlikely anyone is extending this in practice
     public BlockChangeLimiter(Extent extent, int limit) {
         super(extent);
+        this.extent = extent;
         setLimit(limit);
     }
 
@@ -85,6 +89,6 @@ public class BlockChangeLimiter extends AbstractDelegateExtent {
             }
             count++;
         }
-        return super.setBlock(location, block);
+        return extent.setBlock(location, block);
     }
 }

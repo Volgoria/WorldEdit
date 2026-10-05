@@ -163,6 +163,9 @@ public class MultiStageReorder extends AbstractBufferingExtent implements Reorde
      */
     private final List<BlockMap<BaseBlock>> stagesLastCommittedFirst = new ArrayList<>();
 
+    // Same as getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private boolean enabled;
 
     public enum PlacementPriority {
@@ -192,6 +195,7 @@ public class MultiStageReorder extends AbstractBufferingExtent implements Reorde
      */
     public MultiStageReorder(Extent extent, boolean enabled) {
         super(extent);
+        this.extent = extent;
         this.enabled = enabled;
 
         for (PlacementPriority priority : PlacementPriority.values()) {
@@ -219,6 +223,18 @@ public class MultiStageReorder extends AbstractBufferingExtent implements Reorde
         this.enabled = enabled;
     }
 
+    @Override
+    public BlockState getBlock(BlockVector3 position) {
+        BaseBlock block = getBufferedFullBlock(position);
+        return block == null ? extent.getBlock(position) : block.toImmutableState();
+    }
+
+    @Override
+    public BaseBlock getFullBlock(BlockVector3 position) {
+        BaseBlock block = getBufferedFullBlock(position);
+        return block == null ? extent.getFullBlock(position) : block;
+    }
+
     public boolean commitRequired() {
         return enabled;
     }
@@ -236,7 +252,7 @@ public class MultiStageReorder extends AbstractBufferingExtent implements Reorde
     @Override
     public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 location, B block) throws WorldEditException {
         if (!enabled) {
-            return setDelegateBlock(location, block);
+            return extent.setBlock(location, block);
         }
 
         BlockState existing = getExtent().getBlock(location);

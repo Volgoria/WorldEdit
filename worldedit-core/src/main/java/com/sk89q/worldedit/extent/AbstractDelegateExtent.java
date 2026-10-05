@@ -39,6 +39,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * A base class for {@link Extent}s that merely passes extents onto another.
+ *
+ * <p>Implementation note: every subclass that calls {@code super.setBlock(...)}
+ * shares the single call to the delegate in this class, which therefore sees
+ * every extent type and cannot be inlined by the JIT. The extents of the
+ * {@code EditSession} chain keep their own reference to the delegate and call
+ * it directly on their hot paths, so that each has a call site of its own.</p>
  */
 public abstract class AbstractDelegateExtent implements Extent {
 

@@ -28,6 +28,7 @@ import com.sk89q.worldedit.function.operation.RunContext;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.util.collection.BlockMap;
 import com.sk89q.worldedit.world.block.BaseBlock;
+import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 
 /**
@@ -35,6 +36,9 @@ import com.sk89q.worldedit.world.block.BlockStateHolder;
  */
 public class BatchingExtent extends AbstractBufferingExtent {
 
+    // Same as getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private final BlockMap<BaseBlock> blockMap = BlockMap.createForBaseBlock();
     private boolean enabled;
 
@@ -44,7 +48,20 @@ public class BatchingExtent extends AbstractBufferingExtent {
 
     public BatchingExtent(Extent extent, boolean enabled) {
         super(extent);
+        this.extent = extent;
         this.enabled = enabled;
+    }
+
+    @Override
+    public BlockState getBlock(BlockVector3 position) {
+        BaseBlock block = getBufferedFullBlock(position);
+        return block == null ? extent.getBlock(position) : block.toImmutableState();
+    }
+
+    @Override
+    public BaseBlock getFullBlock(BlockVector3 position) {
+        BaseBlock block = getBufferedFullBlock(position);
+        return block == null ? extent.getFullBlock(position) : block;
     }
 
     public boolean isEnabled() {
@@ -62,7 +79,7 @@ public class BatchingExtent extends AbstractBufferingExtent {
     @Override
     public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 location, B block) throws WorldEditException {
         if (!enabled) {
-            return setDelegateBlock(location, block);
+            return extent.setBlock(location, block);
         }
         blockMap.put(location, block.toBaseBlock());
         return true;

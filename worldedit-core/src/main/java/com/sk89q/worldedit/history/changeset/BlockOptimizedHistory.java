@@ -62,21 +62,26 @@ public class BlockOptimizedHistory extends ArrayListHistory {
 
         if (isRecordingChanges()) {
             if (change instanceof BlockChange blockChange) {
-                BlockVector3 position = blockChange.position();
-                if (current.put(position, blockChange.current()) == null) {
-                    previous.add(position, blockChange.previous());
-                    if (currentOrder != null) {
-                        currentOrder.add(position, null);
-                    }
-                } else {
-                    if (currentOrder == null) {
-                        currentOrder = previous.copyPositions();
-                    }
-                    currentOrder.add(position, null);
-                }
+                // Kept out of line so that this method stays small enough to be inlined
+                // into ChangeSetExtent, where the BlockChange can then be scalar-replaced
+                addBlockChange(blockChange.position(), blockChange.previous(), blockChange.current());
             } else {
                 super.add(change);
             }
+        }
+    }
+
+    private void addBlockChange(BlockVector3 position, BaseBlock previousBlock, BaseBlock currentBlock) {
+        if (current.put(position, currentBlock) == null) {
+            previous.add(position, previousBlock);
+            if (currentOrder != null) {
+                currentOrder.add(position, null);
+            }
+        } else {
+            if (currentOrder == null) {
+                currentOrder = previous.copyPositions();
+            }
+            currentOrder.add(position, null);
         }
     }
 

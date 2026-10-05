@@ -25,6 +25,8 @@ import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
+import com.sk89q.worldedit.world.block.BaseBlock;
+import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockType;
 
@@ -35,6 +37,9 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class DataValidatorExtent extends AbstractDelegateExtent {
 
+    // Same as getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private final int minY;
     private final int maxY;
 
@@ -57,8 +62,19 @@ public class DataValidatorExtent extends AbstractDelegateExtent {
      */
     public DataValidatorExtent(Extent extent, int minY, int maxY) {
         super(extent);
+        this.extent = extent;
         this.minY = minY;
         this.maxY = maxY;
+    }
+
+    @Override
+    public BlockState getBlock(BlockVector3 position) {
+        return extent.getBlock(position);
+    }
+
+    @Override
+    public BaseBlock getFullBlock(BlockVector3 position) {
+        return extent.getFullBlock(position);
     }
 
     @Override
@@ -74,7 +90,7 @@ public class DataValidatorExtent extends AbstractDelegateExtent {
             return false;
         }
 
-        return super.setBlock(location, block);
+        return extent.setBlock(location, block);
     }
 
     @Override

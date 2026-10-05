@@ -25,6 +25,8 @@ import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
+import com.sk89q.worldedit.world.block.BaseBlock;
+import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -34,6 +36,9 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class ChunkLoadingExtent extends AbstractDelegateExtent {
 
+    // Same as getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private final World world;
     private final boolean enabled;
 
@@ -46,9 +51,20 @@ public class ChunkLoadingExtent extends AbstractDelegateExtent {
      */
     public ChunkLoadingExtent(Extent extent, World world, boolean enabled) {
         super(extent);
+        this.extent = extent;
         checkNotNull(world);
         this.enabled = enabled;
         this.world = world;
+    }
+
+    @Override
+    public BlockState getBlock(BlockVector3 position) {
+        return extent.getBlock(position);
+    }
+
+    @Override
+    public BaseBlock getFullBlock(BlockVector3 position) {
+        return extent.getFullBlock(position);
     }
 
     /**
@@ -66,7 +82,7 @@ public class ChunkLoadingExtent extends AbstractDelegateExtent {
         if (enabled) {
             world.checkLoadedChunk(location);
         }
-        return super.setBlock(location, block);
+        return extent.setBlock(location, block);
     }
 
     @Override

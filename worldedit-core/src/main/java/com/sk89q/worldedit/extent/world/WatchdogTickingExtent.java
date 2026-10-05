@@ -44,6 +44,9 @@ public class WatchdogTickingExtent extends AbstractDelegateExtent {
     // Number of operations we run per tick to the watchdog
     private static final int OPS_PER_TICK = 100;
 
+    // Same as getExtent(), called directly so that this class has call sites of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private final Watchdog watchdog;
     private boolean enabled;
     private int ops;
@@ -56,6 +59,7 @@ public class WatchdogTickingExtent extends AbstractDelegateExtent {
      */
     public WatchdogTickingExtent(Extent extent, Watchdog watchdog) {
         super(extent);
+        this.extent = extent;
         this.watchdog = watchdog;
     }
 
@@ -80,7 +84,7 @@ public class WatchdogTickingExtent extends AbstractDelegateExtent {
     @Override
     public <T extends BlockStateHolder<T>> boolean setBlock(BlockVector3 location, T block) throws WorldEditException {
         onOperation();
-        return super.setBlock(location, block);
+        return extent.setBlock(location, block);
     }
 
     @Nullable
@@ -99,13 +103,13 @@ public class WatchdogTickingExtent extends AbstractDelegateExtent {
     @Override
     public BlockState getBlock(BlockVector3 position) {
         onOperation();
-        return super.getBlock(position);
+        return extent.getBlock(position);
     }
 
     @Override
     public BaseBlock getFullBlock(BlockVector3 position) {
         onOperation();
-        return super.getFullBlock(position);
+        return extent.getFullBlock(position);
     }
 
     @Override

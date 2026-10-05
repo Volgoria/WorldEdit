@@ -32,6 +32,9 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class MaskingExtent extends AbstractDelegateExtent {
 
+    // Same as getExtent(), called directly so that this class has a call site of its own
+    // (see AbstractDelegateExtent)
+    private final Extent extent;
     private Mask mask;
 
     /**
@@ -42,6 +45,7 @@ public class MaskingExtent extends AbstractDelegateExtent {
      */
     public MaskingExtent(Extent extent, Mask mask) {
         super(extent);
+        this.extent = extent;
         checkNotNull(mask);
         this.mask = mask;
     }
@@ -67,7 +71,7 @@ public class MaskingExtent extends AbstractDelegateExtent {
 
     @Override
     public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 location, B block) throws WorldEditException {
-        return mask.test(location) && super.setBlock(location, block);
+        return mask.test(location) && extent.setBlock(location, block);
     }
 
     @Override
