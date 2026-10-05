@@ -100,6 +100,7 @@ public class LocalSession {
     // Session related
     private transient RegionSelector selector = new CuboidRegionSelector();
     private transient Placement placement = new Placement(PlacementType.PLAYER, BlockVector3.ZERO);
+    // Commands run asynchronously, so the history and its pointer are guarded by the history's monitor
     private final transient ArrayDeque<EditSession> history = new ArrayDeque<>();
     private transient int historyPointer = 0;
     private transient ClipboardHolder clipboard;
@@ -219,8 +220,10 @@ public class LocalSession {
      * Clear history.
      */
     public void clearHistory() {
-        history.clear();
-        historyPointer = 0;
+        synchronized (history) {
+            history.clear();
+            historyPointer = 0;
+        }
     }
 
     /**
@@ -229,7 +232,9 @@ public class LocalSession {
      * @return an immutable copy of the history
      */
     public List<EditSession> getHistory() {
-        return ImmutableList.copyOf(history);
+        synchronized (history) {
+            return ImmutableList.copyOf(history);
+        }
     }
 
     /**
@@ -239,7 +244,9 @@ public class LocalSession {
      * @return the history pointer
      */
     public int getHistoryPointer() {
-        return historyPointer;
+        synchronized (history) {
+            return historyPointer;
+        }
     }
 
     /**
@@ -256,15 +263,17 @@ public class LocalSession {
             return;
         }
 
-        // Destroy any sessions after this undo point
-        while (historyPointer < history.size()) {
-            history.removeLast();
+        synchronized (history) {
+            // Destroy any sessions after this undo point
+            while (historyPointer < history.size()) {
+                history.removeLast();
+            }
+            history.addLast(editSession);
+            while (history.size() > MAX_HISTORY_SIZE) {
+                history.removeFirst();
+            }
+            historyPointer = history.size();
         }
-        history.addLast(editSession);
-        while (history.size() > MAX_HISTORY_SIZE) {
-            history.removeFirst();
-        }
-        historyPointer = history.size();
     }
 
     /**
@@ -276,20 +285,14 @@ public class LocalSession {
      */
     public EditSession undo(@Nullable BlockBag newBlockBag, Actor actor) {
         checkNotNull(actor);
-        --historyPointer;
-        if (historyPointer >= 0) {
-            EditSession editSession = Iterables.get(history, historyPointer);
-            try (EditSession newEditSession =
-                     WorldEdit.getInstance().newEditSessionBuilder()
-                         .world(editSession.getWorld()).blockBag(newBlockBag).actor(actor)
-                         .build()) {
-                prepareEditingExtents(newEditSession, actor);
-                editSession.undo(newEditSession);
+        synchronized (history) {
+            if (historyPointer <= 0) {
+                return null;
             }
+            --historyPointer;
+            EditSession editSession = Iterables.get(history, historyPointer);
+            replayHistory(editSession, newBlockBag, actor, editSession::undo);
             return editSession;
-        } else {
-            historyPointer = 0;
-            return null;
         }
     }
 
@@ -302,20 +305,29 @@ public class LocalSession {
      */
     public EditSession redo(@Nullable BlockBag newBlockBag, Actor actor) {
         checkNotNull(actor);
-        if (historyPointer < history.size()) {
-            EditSession editSession = Iterables.get(history, historyPointer);
-            try (EditSession newEditSession =
-                     WorldEdit.getInstance().newEditSessionBuilder()
-                         .world(editSession.getWorld()).blockBag(newBlockBag).actor(actor)
-                         .build()) {
-                prepareEditingExtents(newEditSession, actor);
-                editSession.redo(newEditSession);
+        synchronized (history) {
+            if (historyPointer >= history.size()) {
+                return null;
             }
+            EditSession editSession = Iterables.get(history, historyPointer);
+            replayHistory(editSession, newBlockBag, actor, editSession::redo);
             ++historyPointer;
             return editSession;
         }
+    }
 
-        return null;
+    /**
+     * Apply an undo or redo of a remembered edit through a fresh edit session
+     * configured like this session's own edit sessions.
+     */
+    private void replayHistory(EditSession remembered, @Nullable BlockBag newBlockBag, Actor actor,
+                               Consumer<EditSession> replay) {
+        try (EditSession newEditSession = WorldEdit.getInstance().newEditSessionBuilder()
+                .world(remembered.getWorld()).blockBag(newBlockBag).actor(actor)
+                .build()) {
+            prepareEditingExtents(newEditSession, actor);
+            replay.accept(newEditSession);
+        }
     }
 
     public boolean hasWorldOverride() {
