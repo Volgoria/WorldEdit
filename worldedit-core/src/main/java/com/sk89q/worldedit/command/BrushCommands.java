@@ -19,8 +19,10 @@
 
 package com.sk89q.worldedit.command;
 
+import com.google.common.base.Splitter;
 import com.sk89q.worldedit.LocalConfiguration;
 import com.sk89q.worldedit.LocalSession;
+import com.sk89q.worldedit.MaxBrushRadiusException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.command.argument.HeightConverter;
@@ -33,6 +35,8 @@ import com.sk89q.worldedit.command.tool.brush.BlobBrush;
 import com.sk89q.worldedit.command.tool.brush.Brush;
 import com.sk89q.worldedit.command.tool.brush.ButcherBrush;
 import com.sk89q.worldedit.command.tool.brush.ClipboardBrush;
+import com.sk89q.worldedit.command.tool.brush.CommandBrush;
+import com.sk89q.worldedit.command.tool.brush.CopyPasteBrush;
 import com.sk89q.worldedit.command.tool.brush.CylinderBrush;
 import com.sk89q.worldedit.command.tool.brush.DrainBrush;
 import com.sk89q.worldedit.command.tool.brush.FillBrush;
@@ -40,20 +44,29 @@ import com.sk89q.worldedit.command.tool.brush.GravityBrush;
 import com.sk89q.worldedit.command.tool.brush.HollowCylinderBrush;
 import com.sk89q.worldedit.command.tool.brush.HollowSphereBrush;
 import com.sk89q.worldedit.command.tool.brush.ImageHeightmapBrush;
+import com.sk89q.worldedit.command.tool.brush.LayerBrush;
 import com.sk89q.worldedit.command.tool.brush.LineBrush;
 import com.sk89q.worldedit.command.tool.brush.MorphBrush;
 import com.sk89q.worldedit.command.tool.brush.OperationFactoryBrush;
 import com.sk89q.worldedit.command.tool.brush.OverlayBrush;
+import com.sk89q.worldedit.command.tool.brush.PopulateSchematicBrush;
+import com.sk89q.worldedit.command.tool.brush.ShatterBrush;
 import com.sk89q.worldedit.command.tool.brush.SmoothBrush;
 import com.sk89q.worldedit.command.tool.brush.SnowSmoothBrush;
 import com.sk89q.worldedit.command.tool.brush.SphereBrush;
 import com.sk89q.worldedit.command.tool.brush.SplatterBrush;
+import com.sk89q.worldedit.command.tool.brush.SplineBrush;
+import com.sk89q.worldedit.command.tool.brush.SurfaceSplatterBrush;
 import com.sk89q.worldedit.command.util.AsyncCommandBuilder;
 import com.sk89q.worldedit.command.util.CommandPermissions;
 import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.command.util.CreatureButcher;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
+import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.function.Contextual;
 import com.sk89q.worldedit.function.factory.ApplyLayer;
 import com.sk89q.worldedit.function.factory.ApplyRegion;
@@ -85,6 +98,8 @@ import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.util.formatting.text.event.ClickEvent;
 import com.sk89q.worldedit.util.formatting.text.format.TextColor;
+import com.sk89q.worldedit.util.io.file.FilenameException;
+import com.sk89q.worldedit.util.io.file.FilenameResolutionException;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import com.sk89q.worldedit.world.generation.ConfiguredFeatureType;
@@ -95,7 +110,21 @@ import org.enginehub.piston.annotation.param.Arg;
 import org.enginehub.piston.annotation.param.ArgFlag;
 import org.enginehub.piston.annotation.param.Switch;
 
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -104,6 +133,11 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 @CommandContainer(superTypes = CommandPermissionsConditionGenerator.Registration.class)
 public class BrushCommands {
+
+    private static final int MAX_FRAGMENTS = 64;
+    private static final int MAX_PATCHES = 64;
+    private static final int MAX_LAYERS = 64;
+    private static final int MAX_SCHEMATICS = 64;
 
     private final WorldEdit worldEdit;
 
@@ -147,16 +181,9 @@ public class BrushCommands {
 
         Brush brush = hollow ? new HollowSphereBrush() : new SphereBrush();
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            brush,
-            "worldedit.brush.sphere"
-        );
-        tool.setFill(pattern);
-        tool.setSize(radius);
+        equip(player, session, brush, "worldedit.brush.sphere", pattern, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.sphere.equip", TextComponent.of(String.format("%.0f", radius))));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.sphere.equip", TextComponent.of(String.format("%.0f", radius)));
     }
 
     @Command(
@@ -179,16 +206,9 @@ public class BrushCommands {
 
         Brush brush = hollow ? new HollowCylinderBrush(height) : new CylinderBrush(height);
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            brush,
-            "worldedit.brush.cylinder"
-        );
-        tool.setFill(pattern);
-        tool.setSize(radius);
+        equip(player, session, brush, "worldedit.brush.cylinder", pattern, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.cylinder.equip", TextComponent.of((int) radius), TextComponent.of(height)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.cylinder.equip", TextComponent.of((int) radius), TextComponent.of(height));
     }
 
     @Command(
@@ -211,16 +231,9 @@ public class BrushCommands {
             return;
         }
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new SplatterBrush(decay),
-            "worldedit.brush.splatter"
-        );
-        tool.setFill(pattern);
-        tool.setSize(radius);
+        equip(player, session, new SplatterBrush(decay), "worldedit.brush.splatter", pattern, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.splatter.equip", TextComponent.of((int) radius), TextComponent.of(decay)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.splatter.equip", TextComponent.of((int) radius), TextComponent.of(decay));
     }
 
 
@@ -256,14 +269,11 @@ public class BrushCommands {
         worldEdit.checkMaxBrushRadius(size.y() / 2D - 1);
         worldEdit.checkMaxBrushRadius(size.z() / 2D - 1);
 
-        session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
+        bind(player, session,
             new ClipboardBrush(newHolder, ignoreAir, !pasteStructureVoid, usingOrigin, pasteEntities, pasteBiomes, sourceMask),
-            "worldedit.brush.clipboard"
-        );
+            "worldedit.brush.clipboard");
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.clipboard.equip"));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.clipboard.equip");
     }
 
     @Command(
@@ -281,20 +291,13 @@ public class BrushCommands {
                                 Mask mask) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(radius);
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new SmoothBrush(iterations, mask),
-            "worldedit.brush.smooth"
-        );
-        tool.setSize(radius);
+        equip(player, session, new SmoothBrush(iterations, mask), "worldedit.brush.smooth", radius);
 
-        player.printInfo(TranslatableComponent.of(
-                "worldedit.brush.smooth.equip",
-                TextComponent.of((int) radius),
-                TextComponent.of(iterations),
-                TranslatableComponent.of("worldedit.brush.smooth." + (mask == null ? "no" : "") + "filter")
-        ));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.smooth.equip",
+            TextComponent.of((int) radius),
+            TextComponent.of(iterations),
+            TranslatableComponent.of("worldedit.brush.smooth." + (mask == null ? "no" : "") + "filter")
+        );
     }
 
     @Command(
@@ -314,20 +317,14 @@ public class BrushCommands {
                                     Mask mask) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(radius);
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new SnowSmoothBrush(iterations, snowBlockCount, mask),
-            "worldedit.brush.snowsmooth"
-        );
-        tool.setSize(radius);
+        equip(player, session, new SnowSmoothBrush(iterations, snowBlockCount, mask), "worldedit.brush.snowsmooth", radius);
 
-        player.printInfo(TranslatableComponent.of(
-                "worldedit.brush.snowsmooth.equip",
-                TextComponent.of((int) radius),
-                TextComponent.of(iterations),
-                TranslatableComponent.of("worldedit.brush.snowsmooth." + (mask == null ? "no" : "") + "filter"),
-                TextComponent.of(snowBlockCount)
-        ));
+        announce(player, "worldedit.brush.snowsmooth.equip",
+            TextComponent.of((int) radius),
+            TextComponent.of(iterations),
+            TranslatableComponent.of("worldedit.brush.snowsmooth." + (mask == null ? "no" : "") + "filter"),
+            TextComponent.of(snowBlockCount)
+        );
     }
 
     @Command(
@@ -341,17 +338,10 @@ public class BrushCommands {
                                     double radius) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(radius);
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new SphereBrush(),
-            "worldedit.brush.ex"
-        );
-        tool.setFill(BlockTypes.AIR.getDefaultState());
-        tool.setSize(radius);
+        BrushTool tool = equip(player, session, new SphereBrush(), "worldedit.brush.ex", BlockTypes.AIR.getDefaultState(), radius);
         tool.setMask(new BlockTypeMask(new RequestExtent(), BlockTypes.FIRE));
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.extinguish.equip", TextComponent.of((int) radius)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.extinguish.equip", TextComponent.of((int) radius));
     }
 
     @Command(
@@ -374,15 +364,9 @@ public class BrushCommands {
                                  Integer height) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(radius);
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new GravityBrush(height),
-            "worldedit.brush.gravity"
-        );
-        tool.setSize(radius);
+        equip(player, session, new GravityBrush(height), "worldedit.brush.gravity", radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.gravity.equip", TextComponent.of((int) radius)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.gravity.equip", TextComponent.of((int) radius));
     }
 
     @Command(
@@ -437,14 +421,9 @@ public class BrushCommands {
         flags.or(CreatureButcher.Flags.ARMOR_STAND, killArmorStands, "worldedit.butcher.armorstands");
         flags.or(CreatureButcher.Flags.WATER, killWater, "worldedit.butcher.water");
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new ButcherBrush(flags), "worldedit.brush.butcher"
-        );
-        tool.setSize(radius);
+        equip(player, session, new ButcherBrush(flags), "worldedit.brush.butcher", radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.butcher.equip", TextComponent.of((int) radius)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.butcher.equip", TextComponent.of((int) radius));
     }
 
     @Command(
@@ -476,17 +455,12 @@ public class BrushCommands {
                 .setDelayMessage(TranslatableComponent.of("worldedit.asset.load.loading"))
                 .setWorkingMessage(TranslatableComponent.of("worldedit.asset.load.still-loading"))
                 .onSuccess(TranslatableComponent.of("worldedit.brush.heightmap.equip", TextComponent.of((int) radius)), heightmap -> {
-                    BrushTool tool;
                     try {
-                        tool = session.forceBrush(
-                            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-                            new ImageHeightmapBrush(heightmap, intensity, erase, flatten, randomize),
-                            "worldedit.brush.heightmap"
-                        );
+                        equip(player, session, new ImageHeightmapBrush(heightmap, intensity, erase, flatten, randomize),
+                            "worldedit.brush.heightmap", radius);
                     } catch (InvalidToolBindException e) {
                         throw new RuntimeException(e);
                     }
-                    tool.setSize(radius);
                     ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
                 })
                 .onFailure(TranslatableComponent.of("worldedit.asset.load.failed"), worldEdit.getPlatformManager().getPlatformCommandManager().getExceptionConverter())
@@ -654,7 +628,6 @@ public class BrushCommands {
 
         setOperationBasedBrush(player, localSession, radius,
             new ApplyRegion(new BiomeFactory(biomeType)), shape, "worldedit.brush.biome");
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
     }
 
     @Command(
@@ -674,15 +647,10 @@ public class BrushCommands {
                       @Arg(desc = "Dilate iterations", def = "1")
                           int numDilateIterations) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(brushSize);
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new MorphBrush(minErodeFaces, numErodeIterations, minDilateFaces, numDilateIterations),
-            "worldedit.brush.morph"
-        );
-        tool.setSize(brushSize);
+        equip(player, session, new MorphBrush(minErodeFaces, numErodeIterations, minDilateFaces, numDilateIterations),
+            "worldedit.brush.morph", brushSize);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.morph.equip", TextComponent.of((int) brushSize)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.morph.equip", TextComponent.of((int) brushSize));
     }
 
     @Command(
@@ -694,15 +662,9 @@ public class BrushCommands {
                       @Arg(desc = "The size of the brush", def = "5")
                           double brushSize) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(brushSize);
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new MorphBrush(2, 1, 5, 1),
-            "worldedit.brush.morph"
-        );
-        tool.setSize(brushSize);
+        equip(player, session, new MorphBrush(2, 1, 5, 1), "worldedit.brush.morph", brushSize);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.morph.equip", TextComponent.of((int) brushSize)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.morph.equip", TextComponent.of((int) brushSize));
     }
 
     @Command(
@@ -714,15 +676,9 @@ public class BrushCommands {
                        @Arg(desc = "The size of the brush", def = "5")
                            double brushSize) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(brushSize);
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new MorphBrush(5, 1, 2, 1),
-            "worldedit.brush.morph"
-        );
-        tool.setSize(brushSize);
+        equip(player, session, new MorphBrush(5, 1, 2, 1), "worldedit.brush.morph", brushSize);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.morph.equip", TextComponent.of((int) brushSize)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.morph.equip", TextComponent.of((int) brushSize));
     }
 
     @Command(
@@ -744,17 +700,10 @@ public class BrushCommands {
             return;
         }
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new BlobBrush(roughness),
-            "worldedit.brush.blob"
-        );
-        tool.setFill(pattern);
-        tool.setSize(radius);
+        equip(player, session, new BlobBrush(roughness), "worldedit.brush.blob", pattern, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.blob.equip",
-            TextComponent.of((int) radius), TextComponent.of((int) roughness)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.blob.equip",
+            TextComponent.of((int) radius), TextComponent.of((int) roughness));
     }
 
     @Command(
@@ -775,16 +724,9 @@ public class BrushCommands {
                               boolean hollow) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(radius);
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new LineBrush(chain, hollow),
-            "worldedit.brush.line"
-        );
-        tool.setFill(pattern);
-        tool.setSize(radius);
+        equip(player, session, new LineBrush(chain, hollow), "worldedit.brush.line", pattern, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.line.equip", TextComponent.of((int) radius)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.line.equip", TextComponent.of((int) radius));
     }
 
     @Command(
@@ -810,17 +752,10 @@ public class BrushCommands {
             return;
         }
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new OverlayBrush(depth, replace),
-            "worldedit.brush.overlay"
-        );
-        tool.setFill(pattern);
-        tool.setSize(radius);
+        equip(player, session, new OverlayBrush(depth, replace), "worldedit.brush.overlay", pattern, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.overlay.equip",
-            TextComponent.of((int) radius), TextComponent.of(depth)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.overlay.equip",
+            TextComponent.of((int) radius), TextComponent.of(depth));
     }
 
     @Command(
@@ -844,17 +779,10 @@ public class BrushCommands {
             return;
         }
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new FillBrush(depth),
-            "worldedit.brush.fill"
-        );
-        tool.setFill(pattern);
-        tool.setSize(radius);
+        equip(player, session, new FillBrush(depth), "worldedit.brush.fill", pattern, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.fill.equip",
-            TextComponent.of((int) radius), TextComponent.of(depth)));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.fill.equip",
+            TextComponent.of((int) radius), TextComponent.of(depth));
     }
 
     @Command(
@@ -869,15 +797,353 @@ public class BrushCommands {
                                boolean waterlogged) throws WorldEditException {
         worldEdit.checkMaxBrushRadius(radius);
 
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new DrainBrush(waterlogged),
-            "worldedit.brush.drain"
-        );
-        tool.setFill(null);
-        tool.setSize(radius);
+        equip(player, session, new DrainBrush(waterlogged), "worldedit.brush.drain", null, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.drain.equip", TextComponent.of((int) radius)));
+        announce(player, "worldedit.brush.drain.equip", TextComponent.of((int) radius));
+    }
+
+    @Command(
+        name = "spline",
+        aliases = { "curve" },
+        desc = "Spline brush, builds a smooth tube through the points you click",
+        descFooter = "Click to add control points, then click the last point again to build the curve.\n"
+            + "Example: '/brush spline stone 2'"
+    )
+    @CommandPermissions("worldedit.brush.spline")
+    public void splineBrush(Player player, LocalSession session,
+                            @Arg(desc = "The pattern of blocks to set")
+                                Pattern pattern,
+                            @Arg(desc = "The radius (thickness) of the tube", def = "0")
+                                double radius,
+                            @ArgFlag(name = 't', desc = "The tension of the curve, between -1 and 1", def = "0")
+                                double tension,
+                            @Switch(name = 'h', desc = "Only draw the shell of the tube")
+                                boolean hollow) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+        if (tension < -1 || tension > 1) {
+            player.printError(TranslatableComponent.of("worldedit.brush.spline.tension-out-of-range", TextComponent.of(tension)));
+            return;
+        }
+
+        equip(player, session, new SplineBrush(hollow, tension), "worldedit.brush.spline", pattern, radius);
+
+        announce(player, "worldedit.brush.spline.equip", TextComponent.of((int) radius));
+    }
+
+    @Command(
+        name = "copypaste",
+        aliases = { "cp" },
+        desc = "Copy-paste brush, copies a sphere at the first click and pastes it at the next one"
+    )
+    @CommandPermissions("worldedit.brush.copypaste")
+    public void copyPasteBrush(Player player, LocalSession session,
+                               @Arg(desc = "The radius of the copied sphere", def = "5")
+                                   double radius,
+                               @Switch(name = 'a', desc = "Don't paste air blocks")
+                                   boolean ignoreAir,
+                               @Switch(name = 'k', desc = "Keep the copy to paste it several times")
+                                   boolean keepCopy) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+
+        equip(player, session, new CopyPasteBrush(ignoreAir, keepCopy), "worldedit.brush.copypaste", null, radius);
+
+        announce(player, "worldedit.brush.copypaste.equip", TextComponent.of((int) radius));
+    }
+
+    @Command(
+        name = "shatter",
+        aliases = { "crack" },
+        desc = "Shatter brush, cracks the terrain along the borders of random fragments",
+        descFooter = "Example: '/brush shatter air 8 10' cracks the ground open"
+    )
+    @CommandPermissions("worldedit.brush.shatter")
+    public void shatterBrush(Player player, LocalSession session,
+                             @Arg(desc = "The pattern of blocks to set in the cracks")
+                                 Pattern pattern,
+                             @Arg(desc = "The radius of the brush", def = "6")
+                                 double radius,
+                             @Arg(desc = "The number of fragments, between 2 and 64", def = "8")
+                                 int fragments,
+                             @ArgFlag(name = 'w', desc = "The width of the cracks", def = "1")
+                                 double width) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+        if (fragments < 2 || fragments > MAX_FRAGMENTS) {
+            player.printError(TranslatableComponent.of("worldedit.brush.shatter.fragments-out-of-range",
+                TextComponent.of(fragments), TextComponent.of(MAX_FRAGMENTS)));
+            return;
+        }
+        if (width <= 0) {
+            player.printError(TranslatableComponent.of("worldedit.brush.shatter.width-too-small", TextComponent.of(width)));
+            return;
+        }
+
+        equip(player, session, new ShatterBrush(fragments, width), "worldedit.brush.shatter", pattern, radius);
+
+        announce(player, "worldedit.brush.shatter.equip", TextComponent.of((int) radius), TextComponent.of(fragments));
+    }
+
+    @Command(
+        name = "surfacesplatter",
+        aliases = { "ssplatter" },
+        desc = "Surface splatter brush, paints random patches on the surface",
+        descFooter = "Example: '/brush surfacesplatter gravel,coarse_dirt 10 6 3'"
+    )
+    @CommandPermissions("worldedit.brush.surfacesplatter")
+    public void surfaceSplatterBrush(Player player, LocalSession session,
+                                     @Arg(desc = "The pattern of blocks to paint")
+                                         Pattern pattern,
+                                     @Arg(desc = "The radius of the brush", def = "8")
+                                         double radius,
+                                     @Arg(desc = "The number of patches per click", def = "6")
+                                         int patches,
+                                     @Arg(desc = "The maximum radius of a patch", def = "3")
+                                         double patchSize) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+        worldEdit.checkMaxBrushRadius(patchSize);
+        if (patches < 1 || patches > MAX_PATCHES || patchSize < 1) {
+            player.printError(TranslatableComponent.of("worldedit.brush.surfacesplatter.invalid", TextComponent.of(MAX_PATCHES)));
+            return;
+        }
+
+        equip(player, session, new SurfaceSplatterBrush(patches, patchSize), "worldedit.brush.surfacesplatter", pattern, radius);
+
+        announce(player, "worldedit.brush.surfacesplatter.equip",
+            TextComponent.of((int) radius), TextComponent.of(patches), TextComponent.of((int) patchSize));
+    }
+
+    @Command(
+        name = "layer",
+        aliases = { "layers" },
+        desc = "Layer brush, applies patterns as layers below the surface, or around the center",
+        descFooter = "Example: '/brush layer 6 grass_block dirt dirt' re-skins terrain;\n"
+            + "'/brush layer -c 8 magma_block stone dirt grass_block' builds a small planet"
+    )
+    @CommandPermissions("worldedit.brush.layer")
+    public void layerBrush(Player player, LocalSession session,
+                           @Arg(desc = "The radius of the brush")
+                               double radius,
+                           @Switch(name = 'c', desc = "Layer by distance to the center instead of depth below the surface")
+                               boolean concentric,
+                           @Arg(desc = "The patterns of the layers: from the surface down, or from the center out with -c", variable = true)
+                               List<Pattern> layers) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+        if (layers.isEmpty() || layers.size() > MAX_LAYERS) {
+            player.printError(TranslatableComponent.of("worldedit.brush.layer.invalid", TextComponent.of(MAX_LAYERS)));
+            return;
+        }
+
+        equip(player, session, new LayerBrush(layers, concentric), "worldedit.brush.layer", null, radius);
+
+        announce(player, "worldedit.brush.layer.equip", TextComponent.of((int) radius), TextComponent.of(layers.size()));
+    }
+
+    @Command(
+        name = "command",
+        aliases = { "cmd" },
+        desc = "Command brush, runs WorldEdit commands at the targeted block",
+        descFooter = "Separate several commands with ';'. The placeholders {x}, {y}, {z}, {size}, {world} and {player} "
+            + "are replaced before each command runs. Quote the commands if they contain flags.\n"
+            + "Example: '/brush command -s 3 \"//pos1 {x},{y},{z}; //pos2 {x},{y},{z}; //outset {size}\"'"
+    )
+    @CommandPermissions("worldedit.brush.command")
+    public void commandBrush(Player player, LocalSession session,
+                             @ArgFlag(name = 's', desc = "The brush size, available as {size}", def = "0")
+                                 double size,
+                             @Arg(desc = "The commands to run", variable = true)
+                                 List<String> commands) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(size);
+        CommandBrush brush;
+        try {
+            brush = new CommandBrush(String.join(" ", commands));
+        } catch (IllegalArgumentException _) {
+            player.printError(TranslatableComponent.of("worldedit.brush.command.empty"));
+            return;
+        }
+
+        equip(player, session, brush, "worldedit.brush.command", null, size);
+
+        announce(player, "worldedit.brush.command.equip", TextComponent.of(brush.getCommands().size()));
+    }
+
+    @Command(
+        name = "populateschem",
+        aliases = { "popschem" },
+        desc = "Schematic population brush, scatters random schematics over the surface",
+        descFooter = "Give schematic names or folders of the schematics directory, separated with ','. "
+            + "Use #clipboard for your clipboard.\n"
+            + "Example: '/brush populateschem -r trees 12 5' plants rotated trees from the 'trees' folder"
+    )
+    @CommandPermissions("worldedit.brush.populateschem")
+    public void populateSchematicBrush(Player player, LocalSession session,
+                                       @Arg(desc = "The schematics or schematic folders to use, separated with ','")
+                                           String schematics,
+                                       @Arg(desc = "The radius of the brush", def = "8")
+                                           double radius,
+                                       @Arg(desc = "The chance of a surface column to get a schematic, between 0 and 100", def = "5")
+                                           double density,
+                                       @ArgFlag(name = 's', desc = "The minimum distance between two schematics", def = "4")
+                                           int spacing,
+                                       @Switch(name = 'r', desc = "Randomly rotate each schematic")
+                                           boolean randomRotation,
+                                       @Switch(name = 'a', desc = "Don't paste air from the schematics")
+                                           boolean ignoreAir) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+        if (density < 0 || density > 100) {
+            player.printError(TranslatableComponent.of("worldedit.brush.populateschem.density-out-of-range", TextComponent.of(density)));
+            return;
+        }
+        if (spacing < 0) {
+            player.printError(TranslatableComponent.of("worldedit.brush.populateschem.spacing-negative", TextComponent.of(spacing)));
+            return;
+        }
+
+        List<ClipboardHolder> clipboards = new ArrayList<>();
+        List<File> files = new ArrayList<>();
+        for (String name : Splitter.on(',').trimResults().omitEmptyStrings().split(schematics)) {
+            if (name.equalsIgnoreCase("#clipboard")) {
+                clipboards.add(session.getClipboard());
+            } else if (!resolveSchematics(player, name, files)) {
+                player.printError(TranslatableComponent.of("worldedit.brush.populateschem.not-found", TextComponent.of(name)));
+                return;
+            }
+        }
+        int count = clipboards.size() + files.size();
+        if (count == 0) {
+            player.printError(TranslatableComponent.of("worldedit.brush.populateschem.not-found", TextComponent.of(schematics)));
+            return;
+        }
+        if (count > MAX_SCHEMATICS) {
+            player.printError(TranslatableComponent.of("worldedit.brush.populateschem.too-many",
+                TextComponent.of(count), TextComponent.of(MAX_SCHEMATICS)));
+            return;
+        }
+
+        double maxRadius = worldEdit.getConfiguration().maxBrushRadius;
+        Callable<List<ClipboardHolder>> task = () -> {
+            List<ClipboardHolder> loaded = new ArrayList<>(clipboards);
+            for (File file : files) {
+                loaded.add(loadSchematic(file));
+            }
+            for (ClipboardHolder holder : loaded) {
+                checkClipboardSize(holder.getClipboard(), maxRadius);
+            }
+            return loaded;
+        };
+        AsyncCommandBuilder.wrap(task, player)
+            .registerWithSupervisor(worldEdit.getSupervisor(), "Loading schematics for a brush")
+            .setDelayMessage(TranslatableComponent.of("worldedit.schematic.load.loading"))
+            .setWorkingMessage(TranslatableComponent.of("worldedit.schematic.load.still-loading"))
+            .onSuccess(TranslatableComponent.of("worldedit.brush.populateschem.equip",
+                TextComponent.of((int) radius), TextComponent.of(count), TextComponent.of(density)), loaded -> {
+                    try {
+                        equip(player, session, new PopulateSchematicBrush(loaded, density, spacing, randomRotation, ignoreAir),
+                            "worldedit.brush.populateschem", null, radius);
+                    } catch (InvalidToolBindException e) {
+                        throw new RuntimeException(e);
+                    }
+                    ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+                })
+            .onFailure(TranslatableComponent.of("worldedit.brush.populateschem.failed"),
+                worldEdit.getPlatformManager().getPlatformCommandManager().getExceptionConverter())
+            .buildAndExecNoReturnValue(worldEdit.getExecutorService());
+    }
+
+    /**
+     * Add the schematic file, or the schematic files of the folder, with the given name.
+     *
+     * @return false if nothing with that name exists
+     */
+    private boolean resolveSchematics(Player player, String name, List<File> files) throws FilenameException {
+        if (name.startsWith("#")) {
+            // Don't open file dialogs
+            return false;
+        }
+        Path root = worldEdit.getSchematicsManager().getRoot().toAbsolutePath().normalize();
+        Path folder = root.resolve(name).normalize();
+        if (folder.startsWith(root) && Files.isDirectory(folder)) {
+            try {
+                if (!folder.toRealPath().startsWith(root.toRealPath()) && !worldEdit.getConfiguration().allowSymlinks) {
+                    throw new FilenameResolutionException(name, TranslatableComponent.of("worldedit.error.file-resolution.outside-root"));
+                }
+                Set<String> extensions = Set.of(ClipboardFormats.getFileExtensionArray());
+                try (Stream<Path> stream = Files.list(folder)) {
+                    stream.filter(Files::isRegularFile)
+                        .filter(path -> extensions.contains(getExtension(path)))
+                        .sorted()
+                        .limit(MAX_SCHEMATICS + 1)
+                        .forEach(path -> files.add(path.toFile()));
+                }
+            } catch (IOException _) {
+                throw new FilenameResolutionException(name, TranslatableComponent.of("worldedit.error.file-resolution.resolve-failed"));
+            }
+            return true;
+        }
+        File file = worldEdit.getSafeOpenFile(player, root.toFile(), name,
+            BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC.getPrimaryFileExtension(),
+            ClipboardFormats.getFileExtensionArray());
+        if (!file.isFile()) {
+            return false;
+        }
+        files.add(file);
+        return true;
+    }
+
+    private static String getExtension(Path path) {
+        String name = path.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private static ClipboardHolder loadSchematic(File file) throws IOException {
+        ClipboardFormat format = ClipboardFormats.findByPath(file.toPath());
+        if (format == null) {
+            throw new IOException("Unknown schematic format: " + file.getName());
+        }
+        try (InputStream in = new BufferedInputStream(new FileInputStream(file));
+             ClipboardReader reader = format.getReader(in)) {
+            return new ClipboardHolder(reader.read());
+        }
+    }
+
+    private static void checkClipboardSize(Clipboard clipboard, double maxRadius) throws MaxBrushRadiusException {
+        BlockVector3 size = clipboard.getDimensions();
+        if (maxRadius > 0 && Math.max(size.x(), Math.max(size.y(), size.z())) / 2D - 1 > maxRadius) {
+            throw new MaxBrushRadiusException();
+        }
+    }
+
+    /**
+     * Bind a brush to the item in the main hand of the player.
+     */
+    private static BrushTool bind(Player player, LocalSession session, Brush brush, String permission) throws InvalidToolBindException {
+        return session.forceBrush(player.getItemInHand(HandSide.MAIN_HAND).getType(), brush, permission);
+    }
+
+    /**
+     * Bind a brush to the item in the main hand of the player, and set its size.
+     */
+    private static BrushTool equip(Player player, LocalSession session, Brush brush, String permission,
+                                   double size) throws InvalidToolBindException {
+        BrushTool tool = bind(player, session, brush, permission);
+        tool.setSize(size);
+        return tool;
+    }
+
+    /**
+     * Bind a brush to the item in the main hand of the player, and set its material and size.
+     */
+    private static BrushTool equip(Player player, LocalSession session, Brush brush, String permission,
+                                   @Nullable Pattern fill, double size) throws InvalidToolBindException {
+        BrushTool tool = equip(player, session, brush, permission, size);
+        tool.setFill(fill);
+        return tool;
+    }
+
+    /**
+     * Tell the player that a brush was equipped, and how to unbind it.
+     */
+    private static void announce(Player player, String translationKey, Component... args) {
+        player.printInfo(TranslatableComponent.of(translationKey, args));
         ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
     }
 
@@ -886,15 +1152,8 @@ public class BrushCommands {
                                         RegionFactory shape,
                                         String permission) throws WorldEditException {
         WorldEdit.getInstance().checkMaxBrushRadius(radius);
-        BrushTool tool = session.forceBrush(
-            player.getItemInHand(HandSide.MAIN_HAND).getType(),
-            new OperationFactoryBrush(factory, shape, session),
-            permission
-        );
-        tool.setSize(radius);
-        tool.setFill(null);
+        equip(player, session, new OperationFactoryBrush(factory, shape, session), permission, null, radius);
 
-        player.printInfo(TranslatableComponent.of("worldedit.brush.operation.equip", TextComponent.of(factory.toString())));
-        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+        announce(player, "worldedit.brush.operation.equip", TextComponent.of(factory.toString()));
     }
 }

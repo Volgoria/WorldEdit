@@ -20,37 +20,35 @@
 package com.sk89q.worldedit.command.tool.brush;
 
 import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.MaxChangedBlocksException;
+import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.world.block.BlockTypes;
+
+import javax.annotation.Nullable;
 
 /**
- * Creates a cylinder of the brush size.
+ * A brush that needs to know which player is using it.
+ *
+ * <p>When used through a {@link com.sk89q.worldedit.command.tool.BrushTool},
+ * {@link #build(Player, LocalSession, EditSession, BlockVector3, Pattern, double)}
+ * is called instead of {@link #build(EditSession, BlockVector3, Pattern, double)}.</p>
  */
-public class CylinderBrush implements Brush {
-
-    private final int height;
-    private final boolean filled;
-
-    public CylinderBrush(int height) {
-        this(height, true);
-    }
+public interface PlayerBrush extends Brush {
 
     /**
-     * Create a cylinder brush.
+     * Build the object on behalf of a player.
      *
-     * @param height the height of the cylinder
-     * @param filled false to only create the shell of the cylinder
+     * @param player the player using the brush
+     * @param session the session of the player
+     * @param editSession the {@code EditSession}
+     * @param position the position
+     * @param pattern the pattern
+     * @param size the size of the brush
+     * @throws MaxChangedBlocksException if the maximum block change limit is exceeded
      */
-    protected CylinderBrush(int height, boolean filled) {
-        this.height = height;
-        this.filled = filled;
-    }
-
-    @Override
-    public void build(EditSession editSession, BlockVector3 position, Pattern pattern, double size) throws MaxChangedBlocksException {
-        editSession.makeCylinder(position, BrushHelper.orDefault(pattern, BlockTypes.COBBLESTONE), size, size, height, filled);
-    }
+    void build(Player player, LocalSession session, EditSession editSession, BlockVector3 position,
+               @Nullable Pattern pattern, double size) throws MaxChangedBlocksException;
 
 }

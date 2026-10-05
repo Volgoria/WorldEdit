@@ -19,19 +19,12 @@
 
 package com.sk89q.worldedit.command.tool.brush;
 
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.MaxChangedBlocksException;
-import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.world.block.BlockTypes;
+/**
+ * Creates the shell of a sphere of the brush size.
+ */
+public class HollowSphereBrush extends SphereBrush {
 
-public class HollowSphereBrush implements Brush {
-
-    @Override
-    public void build(EditSession editSession, BlockVector3 position, Pattern pattern, double size) throws MaxChangedBlocksException {
-        if (pattern == null) {
-            pattern = BlockTypes.COBBLESTONE.getDefaultState();
-        }
-        editSession.makeSphere(position, pattern, size, size, size, false);
+    public HollowSphereBrush() {
+        super(false);
     }
 }

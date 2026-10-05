@@ -24,6 +24,7 @@ import com.sk89q.worldedit.LocalConfiguration;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.command.tool.brush.Brush;
+import com.sk89q.worldedit.command.tool.brush.PlayerBrush;
 import com.sk89q.worldedit.command.tool.brush.SphereBrush;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.Actor;
@@ -33,6 +34,7 @@ import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.function.mask.MaskIntersection;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
+import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
@@ -194,6 +196,32 @@ public class BrushTool implements TraceTool {
         this.range = range;
     }
 
+    /**
+     * Find the block targeted by a player, for tools that act at a distance.
+     *
+     * <p>If a range was set, the trace stops at that range and returns the
+     * last block in range when nothing was hit. Otherwise, the trace extends
+     * up to the maximum range. An error is sent to the player when no block
+     * is targeted.</p>
+     *
+     * @param player the player
+     * @return the targeted block, or {@code null} if there is none
+     */
+    @Nullable
+    protected Location getTarget(Player player) {
+        Location target;
+        if (this.range > -1) {
+            target = player.getBlockTrace(getRange(), true, traceMask);
+        } else {
+            target = player.getBlockTrace(MAX_RANGE, false, traceMask);
+        }
+
+        if (target == null) {
+            player.printError(TranslatableComponent.of("worldedit.tool.no-block"));
+        }
+        return target;
+    }
+
     @Override
     public boolean actPrimary(Platform server, LocalConfiguration config, Player player, LocalSession session) {
         Location target = player.getBlockTrace(getRange(), true, traceMask);
@@ -221,7 +249,12 @@ public class BrushTool implements TraceTool {
             }
 
             try {
-                brush.build(editSession, target.toVector().toBlockPoint(), material, size);
+                BlockVector3 position = target.toVector().toBlockPoint();
+                if (brush instanceof PlayerBrush playerBrush) {
+                    playerBrush.build(player, session, editSession, position, material, size);
+                } else {
+                    brush.build(editSession, position, material, size);
+                }
             } catch (MaxChangedBlocksException _) {
                 player.printError(TranslatableComponent.of("worldedit.tool.max-block-changes"));
             } catch (ExpressionException e) {

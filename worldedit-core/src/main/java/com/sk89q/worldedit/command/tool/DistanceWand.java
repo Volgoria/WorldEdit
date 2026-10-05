@@ -24,11 +24,9 @@ import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.Platform;
 import com.sk89q.worldedit.extension.platform.permission.ActorSelectorLimits;
-import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.RegionSelector;
 import com.sk89q.worldedit.util.Location;
-import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
 /**
  * A wand that can be used at a distance.
@@ -67,22 +65,5 @@ public class DistanceWand extends BrushTool implements DoubleActionTraceTool {
             selector.explainSecondarySelection(player, session, blockPoint);
         }
         return true;
-    }
-
-    private Location getTarget(Player player) {
-        Location target;
-        Mask mask = getTraceMask();
-        if (this.range > -1) {
-            target = player.getBlockTrace(getRange(), true, mask);
-        } else {
-            target = player.getBlockTrace(MAX_RANGE, false, mask);
-        }
-
-        if (target == null) {
-            player.printError(TranslatableComponent.of("worldedit.tool.no-block"));
-            return null;
-        }
-
-        return target;
     }
 }

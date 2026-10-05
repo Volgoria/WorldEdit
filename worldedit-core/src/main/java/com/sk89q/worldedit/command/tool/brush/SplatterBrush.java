@@ -42,9 +42,7 @@ public class SplatterBrush implements Brush {
 
     @Override
     public void build(EditSession editSession, BlockVector3 position, Pattern pattern, double size) throws MaxChangedBlocksException {
-        if (pattern == null) {
-            pattern = BlockTypes.COBBLESTONE.getDefaultState();
-        }
+        pattern = BrushHelper.orDefault(pattern, BlockTypes.COBBLESTONE);
 
         Operations.completeLegacy(new RegionVisitor(
             new EllipsoidRegion(position, Vector3.at(size, size, size)),

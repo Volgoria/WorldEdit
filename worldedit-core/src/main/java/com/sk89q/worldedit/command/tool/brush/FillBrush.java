@@ -69,10 +69,7 @@ public class FillBrush implements Brush {
      * @throws MaxChangedBlocksException if the maximum block change limit is exceeded
      */
     public void apply(Extent extent, BlockVector3 position, Pattern pattern, double size) throws MaxChangedBlocksException {
-        if (pattern == null) {
-            pattern = BlockTypes.DIRT.getDefaultState();
-        }
-        BrushHelper.setBlocks(extent, findPositions(extent, position, size), pattern);
+        BrushHelper.setBlocks(extent, findPositions(extent, position, size), BrushHelper.orDefault(pattern, BlockTypes.DIRT));
     }
 
     /**
@@ -85,31 +82,22 @@ public class FillBrush implements Brush {
      */
     public List<BlockVector3> findPositions(Extent extent, BlockVector3 position, double size) {
         List<BlockVector3> positions = new ArrayList<>();
-        int radius = (int) Math.floor(size);
-        double radiusSq = (size + 0.5) * (size + 0.5);
         int topY = Math.min(extent.getMaximumPoint().y(), position.y());
         int bottomY = Math.max(extent.getMinimumPoint().y(), position.y() - depth);
 
         List<BlockVector3> column = new ArrayList<>();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (dx * dx + dz * dz > radiusSq) {
-                    continue;
+        BrushHelper.forEachColumn(position, size, (x, z) -> {
+            column.clear();
+            for (int y = topY; y >= bottomY; y--) {
+                BlockVector3 pos = BlockVector3.at(x, y, z);
+                if (!BrushHelper.isAir(extent, pos)) {
+                    // Reached the ground: everything above it gets filled
+                    positions.addAll(column);
+                    return;
                 }
-                int x = position.x() + dx;
-                int z = position.z() + dz;
-                column.clear();
-                for (int y = topY; y >= bottomY; y--) {
-                    BlockVector3 pos = BlockVector3.at(x, y, z);
-                    if (!BrushHelper.isAir(extent, pos)) {
-                        // Reached the ground: everything above it gets filled
-                        positions.addAll(column);
-                        break;
-                    }
-                    column.add(pos);
-                }
+                column.add(pos);
             }
-        }
+        });
         return positions;
     }
 }

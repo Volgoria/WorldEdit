@@ -19,26 +19,13 @@
 
 package com.sk89q.worldedit.command.tool.brush;
 
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.MaxChangedBlocksException;
-import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.world.block.BlockTypes;
-
-public class HollowCylinderBrush implements Brush {
-
-    private final int height;
+/**
+ * Creates the shell of a cylinder of the brush size.
+ */
+public class HollowCylinderBrush extends CylinderBrush {
 
     public HollowCylinderBrush(int height) {
-        this.height = height;
-    }
-
-    @Override
-    public void build(EditSession editSession, BlockVector3 position, Pattern pattern, double size) throws MaxChangedBlocksException {
-        if (pattern == null) {
-            pattern = BlockTypes.COBBLESTONE.getDefaultState();
-        }
-        editSession.makeCylinder(position, pattern, size, size, height, false);
+        super(height, false);
     }
 
 }

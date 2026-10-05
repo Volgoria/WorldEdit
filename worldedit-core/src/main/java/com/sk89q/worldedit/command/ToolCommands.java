@@ -27,11 +27,14 @@ import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.blocks.BaseItemStack;
 import com.sk89q.worldedit.command.tool.BlockDataCyler;
 import com.sk89q.worldedit.command.tool.BlockReplacer;
+import com.sk89q.worldedit.command.tool.CopyPasteTool;
 import com.sk89q.worldedit.command.tool.DistanceWand;
 import com.sk89q.worldedit.command.tool.FloatingTreeRemover;
 import com.sk89q.worldedit.command.tool.FloodFillTool;
+import com.sk89q.worldedit.command.tool.InspectTool;
 import com.sk89q.worldedit.command.tool.InvalidToolBindException;
 import com.sk89q.worldedit.command.tool.LongRangeBuildTool;
+import com.sk89q.worldedit.command.tool.MeasureTool;
 import com.sk89q.worldedit.command.tool.NavigationWand;
 import com.sk89q.worldedit.command.tool.QueryTool;
 import com.sk89q.worldedit.command.tool.SelectionWand;
@@ -62,6 +65,7 @@ import org.enginehub.piston.CommandParameters;
 import org.enginehub.piston.annotation.Command;
 import org.enginehub.piston.annotation.CommandContainer;
 import org.enginehub.piston.annotation.param.Arg;
+import org.enginehub.piston.annotation.param.Switch;
 import org.enginehub.piston.part.SubCommandPart;
 
 import java.util.Optional;
@@ -74,6 +78,11 @@ public class ToolCommands {
     private static final Component UNBIND_COMMAND_COMPONENT = TextComponent.builder("/tool unbind", TextColor.AQUA)
                                                                    .clickEvent(ClickEvent.suggestCommand("/tool unbind"))
                                                                    .build();
+
+    /**
+     * Tools that are not registered as deprecated global commands.
+     */
+    private static final Set<String> NON_GLOBAL_TOOLS = Set.of("stacker", "measure", "inspect", "copypaste");
 
     public static void register(CommandRegistrationHandler registration,
                                 CommandManager commandManager,
@@ -98,8 +107,8 @@ public class ToolCommands {
                     Collections2.filter(command.getAliases(), alias -> !"unbind".equals(alias))
                 ).build();
             }
-            if (command.getName().equals("stacker")) {
-                // Don't register /stacker
+            if (NON_GLOBAL_TOOLS.contains(command.getName())) {
+                // Newer tools are only available as /tool <name>
                 continue;
             }
             commandManager.register(CommandUtil.deprecate(
@@ -294,6 +303,40 @@ public class ToolCommands {
     }
 
     @Command(
+        name = "measure",
+        aliases = { "ruler" },
+        desc = "Measuring tool",
+        descFooter = "Left-click starts a measurement, right-click adds points to it. "
+            + "Shows distances, the bounding box volume and the horizontal area of the points."
+    )
+    @CommandPermissions("worldedit.tool.measure")
+    public void measure(Player player, LocalSession session) throws WorldEditException {
+        setTool(player, session, new MeasureTool(), "worldedit.tool.measure.equip");
+    }
+
+    @Command(
+        name = "inspect",
+        desc = "Block inspection tool, shows the state, NBT data, biome and light of a block"
+    )
+    @CommandPermissions("worldedit.tool.inspect")
+    public void inspect(Player player, LocalSession session) throws WorldEditException {
+        setTool(player, session, new InspectTool(), "worldedit.tool.inspect.equip");
+    }
+
+    @Command(
+        name = "copypaste",
+        desc = "Copy-paste tool",
+        descFooter = "Left-click copies your selection, using the targeted block as the origin. "
+            + "Right-click pastes your clipboard at the targeted block."
+    )
+    @CommandPermissions("worldedit.tool.copypaste")
+    public void copyPaste(Player player, LocalSession session,
+                          @Switch(name = 'a', desc = "Don't paste air blocks")
+                              boolean ignoreAir) throws WorldEditException {
+        setTool(player, session, new CopyPasteTool(ignoreAir), "worldedit.tool.copypaste.equip");
+    }
+
+    @Command(
         name = "lrbuild",
         aliases = { "/lrbuild" },
         desc = "Long-range building tool"
@@ -305,18 +348,13 @@ public class ToolCommands {
                                    @Arg(desc = "Pattern to set on right-click")
                                        Pattern secondary) throws WorldEditException {
         setTool(player, session, new LongRangeBuildTool(primary, secondary), "worldedit.tool.lrbuild.equip");
-        Component primaryName;
-        Component secondaryName;
-        if (primary instanceof BlockStateHolder) {
-            primaryName = ((BlockStateHolder<?>) primary).getBlockType().getRichName();
-        } else {
-            primaryName = TextComponent.of("pattern");
+        player.printInfo(TranslatableComponent.of("worldedit.tool.lrbuild.set", describePattern(primary), describePattern(secondary)));
+    }
+
+    private static Component describePattern(Pattern pattern) {
+        if (pattern instanceof BlockStateHolder<?> block) {
+            return block.getBlockType().getRichName();
         }
-        if (secondary instanceof BlockStateHolder) {
-            secondaryName = ((BlockStateHolder<?>) secondary).getBlockType().getRichName();
-        } else {
-            secondaryName = TextComponent.of("pattern");
-        }
-        player.printInfo(TranslatableComponent.of("worldedit.tool.lrbuild.set", primaryName, secondaryName));
+        return TextComponent.of("pattern");
     }
 }

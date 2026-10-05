@@ -25,13 +25,31 @@ import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
+/**
+ * Creates a sphere of the brush size.
+ */
 public class SphereBrush implements Brush {
+
+    private final boolean filled;
+
+    /**
+     * Create a brush that makes filled spheres.
+     */
+    public SphereBrush() {
+        this(true);
+    }
+
+    /**
+     * Create a sphere brush.
+     *
+     * @param filled false to only create the shell of the sphere
+     */
+    protected SphereBrush(boolean filled) {
+        this.filled = filled;
+    }
 
     @Override
     public void build(EditSession editSession, BlockVector3 position, Pattern pattern, double size) throws MaxChangedBlocksException {
-        if (pattern == null) {
-            pattern = BlockTypes.COBBLESTONE.getDefaultState();
-        }
-        editSession.makeSphere(position, pattern, size, size, size, true);
+        editSession.makeSphere(position, BrushHelper.orDefault(pattern, BlockTypes.COBBLESTONE), size, size, size, filled);
     }
 }
