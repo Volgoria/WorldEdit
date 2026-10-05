@@ -4,6 +4,9 @@ on:
     branches:
       - 'master'
       - 'version/*'
+      # Volgoria fork: also build working branches
+      - 'claude/**'
+      - 'volgoria/**'
   pull_request:
   merge_group:
 
