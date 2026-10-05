@@ -21,22 +21,33 @@ package com.sk89q.worldedit.cli.data;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParseException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.cli.CLIWorldEdit;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 public class FileRegistries {
 
     private static final int CLI_DATA_VERSION = 1;
     private static final String DATA_FILE_DOWNLOAD_URL = "https://services.enginehub.org/cassette-deck/we-cli-data/";
+    private static final Gson GSON = new GsonBuilder().create();
+
+    /**
+     * Opens a stream to download a data file from.
+     */
+    @FunctionalInterface
+    interface Downloader {
+        InputStream open(URL url) throws IOException;
+    }
 
     private final CLIWorldEdit app;
-    private final Gson gson = new GsonBuilder().create();
 
     private DataFile dataFile;
 
@@ -46,23 +57,66 @@ public class FileRegistries {
 
     public void loadDataFiles() {
         Path outputFolder = WorldEdit.getInstance().getWorkingDirectoryPath("cli-data");
-        Path checkPath = outputFolder.resolve(app.getPlatform().getDataVersion() + "_" + CLI_DATA_VERSION + ".json");
+        this.dataFile = loadDataFile(outputFolder, app.getPlatform().getDataVersion(), URL::openStream);
+    }
 
-        try {
-            Files.createDirectories(outputFolder);
+    /**
+     * Load the data file for the given data version from the cache folder,
+     * downloading it first if it isn't cached yet.
+     *
+     * @param cacheFolder the folder to cache data files in
+     * @param dataVersion the Minecraft data version
+     * @param downloader opens the download stream
+     * @return the data file
+     */
+    static DataFile loadDataFile(Path cacheFolder, int dataVersion, Downloader downloader) {
+        Path checkPath = cacheFolder.resolve(dataVersion + "_" + CLI_DATA_VERSION + ".json");
 
-            if (!Files.exists(checkPath)) {
-                URL url = URI.create(DATA_FILE_DOWNLOAD_URL + app.getPlatform().getDataVersion() + "/" + CLI_DATA_VERSION).toURL();
-
-                try (var stream = url.openStream()) {
-                    Files.copy(stream, checkPath);
-                }
+        if (!Files.exists(checkPath)) {
+            URL url;
+            try {
+                url = URI.create(DATA_FILE_DOWNLOAD_URL + dataVersion + "/" + CLI_DATA_VERSION).toURL();
+            } catch (IOException e) {
+                throw new IllegalStateException("Invalid data file URL", e);
             }
-
-            this.dataFile = gson.fromJson(Files.readString(checkPath), DataFile.class);
-        } catch (IOException e) {
-            throw new RuntimeException("The provided file is not compatible with this version of WorldEdit-CLI. Please update or report this.", e);
+            try {
+                Files.createDirectories(cacheFolder);
+                // Download to a temporary file first, so an interrupted download can't leave a partial file behind
+                Path temp = Files.createTempFile(cacheFolder, checkPath.getFileName().toString(), ".part");
+                try {
+                    try (InputStream stream = downloader.open(url)) {
+                        Files.copy(stream, temp, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    Files.move(temp, checkPath, StandardCopyOption.REPLACE_EXISTING);
+                } finally {
+                    Files.deleteIfExists(temp);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to download block/item data for Minecraft data version "
+                    + dataVersion + " from " + url + ". Check your internet connection;"
+                    + " if this persists, this data version may not be supported by WorldEdit-CLI yet.", e);
+            }
         }
+
+        DataFile dataFile;
+        try {
+            dataFile = GSON.fromJson(Files.readString(checkPath), DataFile.class);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read data file " + checkPath, e);
+        } catch (JsonParseException _) {
+            dataFile = null;
+        }
+        if (dataFile == null || dataFile.blocks().isEmpty()) {
+            try {
+                Files.deleteIfExists(checkPath);
+            } catch (IOException _) {
+                // We tried; the error below tells the user what to do
+            }
+            throw new RuntimeException("The data file " + checkPath + " for Minecraft data version " + dataVersion
+                + " is not compatible with this version of WorldEdit-CLI and has been removed."
+                + " Run again to re-download it; if this persists, please update or report this.");
+        }
+        return dataFile;
     }
 
     public DataFile getDataFile() {
