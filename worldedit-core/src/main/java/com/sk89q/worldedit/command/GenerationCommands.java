@@ -28,7 +28,15 @@ import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.command.util.Logging;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.Actor;
+import com.sk89q.worldedit.function.generator.shape.ArchShape;
+import com.sk89q.worldedit.function.generator.shape.DiskShape;
+import com.sk89q.worldedit.function.generator.shape.DomeShape;
+import com.sk89q.worldedit.function.generator.shape.GeneratedShape;
+import com.sk89q.worldedit.function.generator.shape.HelixShape;
+import com.sk89q.worldedit.function.generator.shape.ShapeAxis;
+import com.sk89q.worldedit.function.generator.shape.TorusShape;
 import com.sk89q.worldedit.function.pattern.Pattern;
+import com.sk89q.worldedit.internal.annotation.Direction;
 import com.sk89q.worldedit.internal.annotation.Radii;
 import com.sk89q.worldedit.internal.annotation.Selection;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
@@ -343,6 +351,208 @@ public class GenerationCommands {
             player.findFreePosition();
         }
         actor.printInfo(TranslatableComponent.of("worldedit.pyramid.created", TextComponent.of(affected)));
+        return affected;
+    }
+
+    @Command(
+        name = "/torus",
+        aliases = { "/donut" },
+        desc = "Generates a torus."
+    )
+    @CommandPermissions("worldedit.generation.torus")
+    @Logging(PLACEMENT)
+    public int torus(Actor actor, LocalSession session, EditSession editSession,
+                     @Arg(desc = "The pattern of blocks to generate")
+                         Pattern pattern,
+                     @Arg(desc = "The distance from the center to the middle of the tube")
+                         double majorRadius,
+                     @Arg(desc = "The radius of the tube")
+                         double minorRadius,
+                     @Arg(desc = "The direction of the axis through the hole", def = "up")
+                     @Direction
+                         BlockVector3 direction,
+                     @Switch(name = 'h', desc = "Make a hollow torus")
+                         boolean hollow) throws WorldEditException {
+        checkCommandArgument(majorRadius >= 0, "Major radius must be at least 0");
+        checkCommandArgument(minorRadius >= 0, "Minor radius must be at least 0");
+        worldEdit.checkMaxRadius(majorRadius + minorRadius);
+
+        BlockVector3 pos = session.getPlacementPosition(actor);
+        GeneratedShape shape = new TorusShape(majorRadius, minorRadius, ShapeAxis.fromDirection(direction), hollow);
+        int affected = shape.generate(editSession, pos, pattern);
+        if (actor instanceof Player player) {
+            player.findFreePosition();
+        }
+        actor.printInfo(TranslatableComponent.of("worldedit.torus.created", TextComponent.of(affected)));
+        return affected;
+    }
+
+    @Command(
+        name = "/disk",
+        aliases = { "/disc" },
+        desc = "Generates a flat disk facing a direction."
+    )
+    @CommandPermissions("worldedit.generation.disk")
+    @Logging(PLACEMENT)
+    public int disk(Actor actor, LocalSession session, EditSession editSession,
+                    @Arg(desc = "The pattern of blocks to generate")
+                        Pattern pattern,
+                    @Arg(desc = "The radii of the disk. 1st is horizontal, 2nd is vertical (N/S for a flat disk)")
+                    @Radii(2)
+                        List<Double> radii,
+                    @Arg(desc = "The direction the disk faces", def = Direction.AIM)
+                    @Direction
+                        BlockVector3 direction,
+                    @Arg(desc = "The thickness of the disk", def = "1")
+                        int thickness,
+                    @Switch(name = 'h', desc = "Only generate the rim of the disk")
+                        boolean hollow) throws WorldEditException {
+        double radiusU;
+        double radiusV;
+        switch (radii.size()) {
+            case 1 -> radiusU = radiusV = Math.max(0, radii.get(0));
+            case 2 -> {
+                radiusU = Math.max(0, radii.get(0));
+                radiusV = Math.max(0, radii.get(1));
+            }
+            default -> {
+                actor.printError(TranslatableComponent.of("worldedit.disk.invalid-radius"));
+                return 0;
+            }
+        }
+        checkCommandArgument(thickness >= 1, "Thickness must be at least 1");
+
+        worldEdit.checkMaxRadius(radiusU);
+        worldEdit.checkMaxRadius(radiusV);
+        worldEdit.checkMaxRadius(thickness);
+
+        BlockVector3 pos = session.getPlacementPosition(actor);
+        GeneratedShape shape = new DiskShape(radiusU, radiusV, thickness, ShapeAxis.fromDirection(direction), hollow);
+        int affected = shape.generate(editSession, pos, pattern);
+        actor.printInfo(TranslatableComponent.of("worldedit.disk.created", TextComponent.of(affected)));
+        return affected;
+    }
+
+    @Command(
+        name = "/dome",
+        desc = "Generates a dome (half sphere)."
+    )
+    @CommandPermissions("worldedit.generation.dome")
+    @Logging(PLACEMENT)
+    public int dome(Actor actor, LocalSession session, EditSession editSession,
+                    @Arg(desc = "The pattern of blocks to generate")
+                        Pattern pattern,
+                    @Arg(desc = "The radii of the dome. Order is N/S, U/D, E/W")
+                    @Radii(3)
+                        List<Double> radii,
+                    @Switch(name = 'h', desc = "Make a hollow dome, open at the bottom")
+                        boolean hollow,
+                    @Switch(name = 'i', desc = "Make an upside-down dome (a bowl)")
+                        boolean inverted) throws WorldEditException {
+        double radiusX;
+        double radiusY;
+        double radiusZ;
+        switch (radii.size()) {
+            case 1 -> radiusX = radiusY = radiusZ = Math.max(0, radii.get(0));
+            case 3 -> {
+                radiusX = Math.max(0, radii.get(0));
+                radiusY = Math.max(0, radii.get(1));
+                radiusZ = Math.max(0, radii.get(2));
+            }
+            default -> {
+                actor.printError(TranslatableComponent.of("worldedit.dome.invalid-radius"));
+                return 0;
+            }
+        }
+
+        worldEdit.checkMaxRadius(radiusX);
+        worldEdit.checkMaxRadius(radiusY);
+        worldEdit.checkMaxRadius(radiusZ);
+
+        BlockVector3 pos = session.getPlacementPosition(actor);
+        GeneratedShape shape = new DomeShape(radiusX, radiusY, radiusZ, inverted, hollow);
+        int affected = shape.generate(editSession, pos, pattern);
+        if (actor instanceof Player player) {
+            player.findFreePosition();
+        }
+        actor.printInfo(TranslatableComponent.of("worldedit.dome.created", TextComponent.of(affected)));
+        return affected;
+    }
+
+    @Command(
+        name = "/helix",
+        aliases = { "/spiral" },
+        desc = "Generates a vertical helix."
+    )
+    @CommandPermissions("worldedit.generation.helix")
+    @Logging(PLACEMENT)
+    public int helix(Actor actor, LocalSession session, EditSession editSession,
+                     @Arg(desc = "The pattern of blocks to generate")
+                         Pattern pattern,
+                     @Arg(desc = "The radius of the helix")
+                         double radius,
+                     @Arg(desc = "The height of the helix")
+                         int height,
+                     @Arg(desc = "The number of turns", def = "1")
+                         double turns,
+                     @Arg(desc = "The thickness of the strand", def = "1")
+                         double thickness,
+                     @Switch(name = 'd', desc = "Make a double helix")
+                         boolean doubleHelix) throws WorldEditException {
+        checkCommandArgument(radius >= 0, "Radius must be at least 0");
+        checkCommandArgument(height >= 1, "Height must be at least 1");
+        checkCommandArgument(turns >= 0, "Turns must be at least 0");
+        checkCommandArgument(thickness >= 1, "Thickness must be at least 1");
+        worldEdit.checkMaxRadius(radius + thickness / 2);
+        worldEdit.checkMaxRadius(height);
+        worldEdit.checkMaxRadius(turns);
+
+        BlockVector3 pos = session.getPlacementPosition(actor);
+        GeneratedShape shape = new HelixShape(radius, height, turns, thickness, doubleHelix ? 2 : 1);
+        int affected = shape.generate(editSession, pos, pattern);
+        actor.printInfo(TranslatableComponent.of("worldedit.helix.created", TextComponent.of(affected)));
+        return affected;
+    }
+
+    @Command(
+        name = "/arch",
+        desc = "Generates an arch to walk through.",
+        descFooter = "The width is rounded up to an odd number so the arch is symmetric."
+    )
+    @CommandPermissions("worldedit.generation.arch")
+    @Logging(PLACEMENT)
+    public int arch(Actor actor, LocalSession session, EditSession editSession,
+                    @Arg(desc = "The pattern of blocks to generate")
+                        Pattern pattern,
+                    @Arg(desc = "The outer width of the arch")
+                        int width,
+                    @Arg(desc = "The outer height of the arch")
+                        int height,
+                    @Arg(desc = "The thickness of the arch band", def = "1")
+                        int thickness,
+                    @Arg(desc = "The depth of the arch, along the walking direction", def = "1")
+                        int depth,
+                    @Arg(desc = "The walking direction through the arch", def = Direction.AIM)
+                    @Direction
+                        BlockVector3 direction) throws WorldEditException {
+        checkCommandArgument(width >= 1, "Width must be at least 1");
+        checkCommandArgument(height >= 1, "Height must be at least 1");
+        checkCommandArgument(thickness >= 1, "Thickness must be at least 1");
+        checkCommandArgument(depth >= 1, "Depth must be at least 1");
+        worldEdit.checkMaxRadius(width / 2.0);
+        worldEdit.checkMaxRadius(height);
+        worldEdit.checkMaxRadius(depth);
+
+        ShapeAxis axis = ShapeAxis.fromHorizontalDirection(direction);
+        if (axis == null) {
+            actor.printError(TranslatableComponent.of("worldedit.arch.invalid-direction"));
+            return 0;
+        }
+
+        BlockVector3 pos = session.getPlacementPosition(actor);
+        GeneratedShape shape = new ArchShape(width, height, thickness, depth, axis);
+        int affected = shape.generate(editSession, pos, pattern);
+        actor.printInfo(TranslatableComponent.of("worldedit.arch.created", TextComponent.of(affected)));
         return affected;
     }
 
