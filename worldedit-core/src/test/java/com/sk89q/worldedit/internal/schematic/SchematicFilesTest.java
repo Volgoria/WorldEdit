@@ -1,0 +1,202 @@
+/*
+ * WorldEdit, a Minecraft world manipulation toolkit
+ * Copyright (C) sk89q <http://www.sk89q.com>
+ * Copyright (C) WorldEdit team and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package com.sk89q.worldedit.internal.schematic;
+
+import com.sk89q.worldedit.BaseWorldEditTest;
+import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.entity.BaseEntity;
+import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
+import com.sk89q.worldedit.extent.clipboard.io.BuiltInClipboardFormat;
+import com.sk89q.worldedit.extent.clipboard.io.ClipboardIoTestSupport;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.util.Location;
+import com.sk89q.worldedit.util.io.file.FilenameException;
+import com.sk89q.worldedit.world.entity.EntityType;
+import org.enginehub.linbus.tree.LinCompoundTag;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static com.sk89q.worldedit.extent.clipboard.io.ClipboardIoTestSupport.CHEST;
+import static com.sk89q.worldedit.extent.clipboard.io.ClipboardIoTestSupport.STONE;
+import static com.sk89q.worldedit.extent.clipboard.io.ClipboardIoTestSupport.state;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+@DisplayName("Schematic file helpers")
+class SchematicFilesTest extends BaseWorldEditTest {
+
+    @TempDir
+    Path root;
+
+    @BeforeAll
+    static void setUpRegistries() {
+        ClipboardIoTestSupport.install(MOCKED_PLATFORM);
+    }
+
+    @AfterAll
+    static void tearDownRegistries() {
+        ClipboardIoTestSupport.uninstall();
+    }
+
+    private File resolve(String source, String target) throws FilenameException {
+        return SchematicFiles.resolveDestination(WorldEdit.getInstance(), null, root.toFile(),
+            root.resolve(source).toFile(), target);
+    }
+
+    private Path create(String name, String content) throws IOException {
+        Path path = root.resolve(name);
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, content);
+        return path;
+    }
+
+    @Test
+    @DisplayName("extracts lower case extensions")
+    void extensions() {
+        assertEquals("schem", SchematicFiles.getExtension(Path.of("a/b/house.SCHEM")));
+        assertEquals("nbt", SchematicFiles.getExtension(Path.of("tower.v2.nbt")));
+        assertEquals("", SchematicFiles.getExtension(Path.of("noext")));
+        assertEquals("", SchematicFiles.getExtension(Path.of(".hidden")));
+        assertEquals("", SchematicFiles.getExtension(Path.of("trailing.")));
+    }
+
+    @Test
+    @DisplayName("keeps the source extension for destinations")
+    void keepsExtension() throws Exception {
+        assertEquals(root.resolve("castle.schem").toFile(), resolve("house.schem", "castle"));
+        assertEquals(root.resolve("castle.schem").toFile(), resolve("house.schem", "castle.schem"));
+        assertEquals(root.resolve("castle.txt.schem").toFile(), resolve("house.schem", "castle.txt"));
+        assertEquals(root.resolve("sub/dir/castle.nbt").toFile(), resolve("house.nbt", "sub/dir/castle"));
+    }
+
+    @Test
+    @DisplayName("rejects destinations outside of the schematics folder")
+    void rejectsTraversal() {
+        assertThrows(FilenameException.class, () -> resolve("house.schem", "../escape"));
+        assertThrows(FilenameException.class, () -> resolve("house.schem", "sub/../../escape"));
+        assertThrows(FilenameException.class, () -> resolve("house.schem", "sub/../../../etc/passwd"));
+    }
+
+    @Test
+    @DisplayName("rejects invalid destination names")
+    void rejectsInvalidNames() {
+        assertThrows(FilenameException.class, () -> resolve("house.schem", "#"));
+        assertThrows(FilenameException.class, () -> resolve("house.schem", "bad<name>"));
+        assertThrows(FilenameException.class, () -> resolve("house.schem", "bad|name"));
+        assertThrows(FilenameException.class, () -> resolve("house.schem", ""));
+    }
+
+    @Test
+    @DisplayName("moves files and creates parent folders")
+    void move() throws Exception {
+        Path source = create("house.schem", "data");
+        Path target = root.resolve("archive/2024/house.schem");
+        SchematicFiles.transfer(source, target, true, false);
+        assertFalse(Files.exists(source));
+        assertEquals("data", Files.readString(target, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    @DisplayName("copies files")
+    void copy() throws Exception {
+        Path source = create("house.schem", "data");
+        Path target = root.resolve("house-copy.schem");
+        SchematicFiles.transfer(source, target, false, false);
+        assertEquals("data", Files.readString(source));
+        assertEquals("data", Files.readString(target));
+    }
+
+    @Test
+    @DisplayName("only overwrites when allowed")
+    void overwrite() throws Exception {
+        Path source = create("a.schem", "new");
+        Path target = create("b.schem", "old");
+        assertThrows(FileAlreadyExistsException.class, () -> SchematicFiles.transfer(source, target, true, false));
+        assertEquals("old", Files.readString(target));
+        assertTrue(Files.exists(source));
+
+        SchematicFiles.transfer(source, target, true, true);
+        assertEquals("new", Files.readString(target));
+        assertFalse(Files.exists(source));
+    }
+
+    @Test
+    @DisplayName("refuses to transfer a file onto itself or a missing file")
+    void invalidTransfers() throws Exception {
+        Path source = create("a.schem", "data");
+        assertThrows(IOException.class, () -> SchematicFiles.transfer(source, root.resolve("./a.schem"), true, true));
+        assertEquals("data", Files.readString(source));
+        assertThrows(IOException.class, () -> SchematicFiles.transfer(root.resolve("missing.schem"), root.resolve("b.schem"), false, false));
+        Files.createDirectories(root.resolve("folder"));
+        assertThrows(IOException.class, () -> SchematicFiles.transfer(root.resolve("folder"), root.resolve("b.schem"), false, false));
+    }
+
+    @Test
+    @DisplayName("filters schematic listings by name and format")
+    void filters() {
+        Path house = root.resolve("builds/House.schem");
+        Path tower = root.resolve("tower.nbt");
+        assertTrue(SchematicFiles.matchesFilter(root, house, null, null));
+        assertTrue(SchematicFiles.matchesFilter(root, house, "", null));
+        assertTrue(SchematicFiles.matchesFilter(root, house, "house", null));
+        assertTrue(SchematicFiles.matchesFilter(root, house, "builds", null));
+        assertFalse(SchematicFiles.matchesFilter(root, tower, "house", null));
+
+        assertTrue(SchematicFiles.matchesFilter(root, tower, null, BuiltInClipboardFormat.MINECRAFT_STRUCTURE));
+        assertFalse(SchematicFiles.matchesFilter(root, house, null, BuiltInClipboardFormat.MINECRAFT_STRUCTURE));
+        assertTrue(SchematicFiles.matchesFilter(root, house, "HOUSE", BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC));
+        assertFalse(SchematicFiles.matchesFilter(root, tower, "tower", BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC));
+    }
+
+    @Test
+    @DisplayName("summarizes clipboards")
+    void summary() throws Exception {
+        BlockArrayClipboard clipboard = new BlockArrayClipboard(
+            new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(3, 1, 2))
+        );
+        clipboard.setBlock(BlockVector3.at(0, 0, 0), state(STONE));
+        clipboard.setBlock(BlockVector3.at(1, 0, 0), state(STONE));
+        clipboard.setBlock(BlockVector3.at(2, 1, 2), state(CHEST).toBaseBlock(
+            LinCompoundTag.builder().putString("id", CHEST).build()
+        ));
+        EntityType pig = EntityType.REGISTRY.get(ClipboardIoTestSupport.PIG);
+        clipboard.createEntity(new Location(clipboard, 1, 1, 1), new BaseEntity(pig));
+
+        SchematicFiles.Summary summary = SchematicFiles.summarize(clipboard);
+        assertEquals(BlockVector3.at(4, 2, 3), summary.size());
+        assertEquals(24, summary.volume());
+        assertEquals(3, summary.nonAirBlocks());
+        assertEquals(1, summary.blockEntities());
+        assertEquals(1, summary.entities());
+    }
+}
