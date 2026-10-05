@@ -46,13 +46,12 @@ public record AffineTransform(
         if (coeffs.length != 9) {
             throw new IllegalArgumentException("Input array must have 9 or 12 elements");
         }
-        if (destIndex > 0 && destIndex % 3 == 0) {
-            // Length 9 has holes in m03, m13, m23
+        if (destIndex % 4 == 3) {
+            // Length 9 has holes in m03, m13, m23 (destination indices 3, 7, 11)
             return 0;
         }
-        // Adjust for missing holes
-        destIndex -= destIndex / 3;
-        return coeffs[destIndex];
+        // Adjust for the holes preceding this index
+        return coeffs[destIndex - destIndex / 4];
     }
 
 
@@ -74,7 +73,7 @@ public record AffineTransform(
     /**
      * Creates a new affine transform from the given coefficients.
      *
-     * @param coefs array of 9 to 12 coefficients
+     * @param coefs array of 9 coefficients (the linear part, row by row, with zero translation) or 12 coefficients
      * @deprecated Use {@link #AffineTransform(double, double, double, double, double, double, double, double, double, double, double, double)} instead
      */
     @Deprecated
@@ -275,10 +274,29 @@ public record AffineTransform(
                 vector.x() * m20 + vector.y() * m21 + vector.z() * m22 + m23);
     }
 
+    /**
+     * Combines this transform with another affine transform.
+     *
+     * <p>Note that, unlike {@link #combine(Transform)} with a non-affine
+     * transform, {@code other} is applied <em>first</em> and this transform
+     * second: this is the same as {@link #concatenate(AffineTransform)}.</p>
+     *
+     * @param other the transform to apply first
+     * @return the composition {@code this * other}
+     */
     public AffineTransform combine(AffineTransform other) {
         return concatenate(other);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>If {@code other} is an {@link AffineTransform}, it is applied
+     * <em>first</em> and this transform second, as with
+     * {@link #concatenate(AffineTransform)}. Otherwise, this transform is
+     * applied first and {@code other} second, using a
+     * {@link CombinedTransform}.</p>
+     */
     @Override
     public Transform combine(Transform other) {
         if (other instanceof AffineTransform otherTransform) {

@@ -593,11 +593,10 @@ public record BlockVector3(int x, int y, int z) {
      * @see AffineTransform another method to transform vectors
      */
     public BlockVector3 transform2D(double angle, double aboutX, double aboutZ, double translateX, double translateZ) {
-        angle = Math.toRadians(angle);
         double x = this.x - aboutX;
         double z = this.z - aboutZ;
-        double cos = Math.cos(angle);
-        double sin = Math.sin(angle);
+        double cos = MathUtils.dCos(angle);
+        double sin = MathUtils.dSin(angle);
         double x2 = x * cos - z * sin;
         double z2 = x * sin + z * cos;
 
@@ -611,7 +610,7 @@ public record BlockVector3(int x, int y, int z) {
     /**
      * Get this vector's pitch as used within the game.
      *
-     * @return pitch in radians
+     * @return pitch in degrees
      */
     public double toPitch() {
         double x = this.x;
@@ -630,7 +629,7 @@ public record BlockVector3(int x, int y, int z) {
     /**
      * Get this vector's yaw as used within the game.
      *
-     * @return yaw in radians
+     * @return yaw in degrees
      */
     public double toYaw() {
         double x = this.x;

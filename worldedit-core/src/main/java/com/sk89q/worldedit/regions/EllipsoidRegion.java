@@ -74,14 +74,29 @@ public class EllipsoidRegion extends AbstractRegion {
         this(ellipsoidRegion.world, ellipsoidRegion.center, ellipsoidRegion.getRadius());
     }
 
+    /**
+     * Gets the largest block offsets from the center that
+     * {@link #contains(BlockVector3)} can accept.
+     *
+     * <p>{@code contains} accepts an offset of up to the stored radius, which
+     * is the user-facing radius plus 0.5, so the bounds must reach
+     * {@code floor(radius + 0.5)} on both sides of the center. For integer
+     * radii this is exactly the radius.</p>
+     *
+     * @return the extent on each side of the center
+     */
+    private BlockVector3 getExtent() {
+        return radius.floor().toBlockPoint();
+    }
+
     @Override
     public BlockVector3 getMinimumPoint() {
-        return center.toVector3().subtract(getRadius()).toBlockPoint();
+        return center.subtract(getExtent());
     }
 
     @Override
     public BlockVector3 getMaximumPoint() {
-        return center.toVector3().add(getRadius()).toBlockPoint();
+        return center.add(getExtent());
     }
 
     private static final BigDecimal ELLIPSOID_BASE_MULTIPLIER = BigDecimal.valueOf((4.0 / 3.0) * Math.PI);
@@ -98,17 +113,17 @@ public class EllipsoidRegion extends AbstractRegion {
 
     @Override
     public int getWidth() {
-        return (int) (2 * radius.x());
+        return 2 * getExtent().x() + 1;
     }
 
     @Override
     public int getHeight() {
-        return (int) (2 * radius.y());
+        return 2 * getExtent().y() + 1;
     }
 
     @Override
     public int getLength() {
-        return (int) (2 * radius.z());
+        return 2 * getExtent().z() + 1;
     }
 
     private BlockVector3 calculateDiff(BlockVector3... changes) throws RegionOperationException {
