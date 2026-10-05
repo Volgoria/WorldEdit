@@ -20,7 +20,6 @@
 package com.sk89q.worldedit.command;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.io.MoreFiles;
 import com.sk89q.worldedit.LocalConfiguration;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
@@ -762,7 +761,7 @@ public class SchematicCommands {
             Path file = files.get(number);
 
             String format = ClipboardFormats.getFileExtensionMap()
-                .get(MoreFiles.getFileExtension(file))
+                .get(SchematicFiles.getExtension(file))
                 .stream()
                 .findFirst()
                 .map(ClipboardFormat::getName)
