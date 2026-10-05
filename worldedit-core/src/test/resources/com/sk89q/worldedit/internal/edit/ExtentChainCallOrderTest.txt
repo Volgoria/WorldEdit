@@ -1,0 +1,1802 @@
+### blockBag
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:dirt/B
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+-- flush
+C setBlock 1,2,3 ordertest:dirt/B
+W getBlock 1,2,3 -> ordertest:air/S
+bag fetch ordertest:dirt/S
+C setBlock 1,2,3 -> false
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:air/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:dirt/B
+W getBlock 17,2,-5 -> ordertest:air/S
+bag fetch ordertest:dirt/S
+C setBlock 17,2,-5 -> false
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+missing {ordertest:dirt=2}
+> setBlock 17,2,-5 ordertest:glass/S
+H setBlock 17,2,-5 ordertest:glass/S
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:glass/S
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+-- close
+C setBlock 17,2,-5 ordertest:glass/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:glass/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=4 blockChangeCount=4
+world {1,3,3=ordertest:air/B, 17,2,-5=ordertest:glass/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:glass/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### blockBagSetLater
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 17,2,-5 ordertest:glass/S
+H setBlock 17,2,-5 ordertest:glass/S
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:glass/S
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:glass/B
+R setBlock 17,2,-5 ordertest:dirt/B
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+missing {}
+-- close
+C setBlock 17,2,-5 ordertest:dirt/B
+W getBlock 17,2,-5 -> ordertest:air/S
+bag fetch ordertest:dirt/S
+C setBlock 17,2,-5 -> false
+C setBlock 1,2,3 ordertest:dirt/B
+W getBlock 1,2,3 -> ordertest:air/S
+bag fetch ordertest:dirt/S
+C setBlock 1,2,3 -> false
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:air/B []
+C setBlock 1,3,3 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=4 blockChangeCount=4
+world {1,3,3=ordertest:air/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### blockBagUnbuffered
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:dirt/B
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+missing {}
+> setBlock 17,2,-5 ordertest:glass/S
+H setBlock 17,2,-5 ordertest:glass/S
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+R setBlock 17,2,-5 ordertest:glass/S
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+-- close
+C setBlock 1,2,3 ordertest:dirt/B
+W checkLoadedChunk 1,2,3
+W setBlock 1,2,3 ordertest:dirt/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W setBlock 1,3,3 ordertest:air/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:glass/B
+W checkLoadedChunk 17,2,-5
+W setBlock 17,2,-5 ordertest:glass/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+changeSet size=4 blockChangeCount=4
+world {1,2,3=ordertest:dirt/B, 1,3,3=ordertest:air/B, 17,2,-5=ordertest:glass/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:dirt/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:glass/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### changeLimit
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:stone/S
+H setBlock 17,2,-5 ordertest:stone/S
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:stone/S
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,3,3 ordertest:stone/S
+H setBlock 1,3,3 ordertest:stone/S
+! MaxChangedBlocksException 2
+> setBlock 1,3,3 ordertest:stone/S
+H setBlock 1,3,3 ordertest:stone/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:stone/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+-- close
+C setBlock 1,2,3 ordertest:stone/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:stone/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:stone/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:stone/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:stone/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:stone/B []
+C setBlock 17,2,-5 -> true
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=3 blockChangeCount=3
+world {1,2,3=ordertest:stone/B, 1,3,3=ordertest:stone/B, 17,2,-5=ordertest:stone/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:stone/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:stone/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:stone/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W applySideEffects 1,2,3 ordertest:stone/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:stone/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:stone/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### changeSetDisabled
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:stone/S
+H setBlock 17,2,-5 ordertest:stone/S
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:stone/S
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+-- close
+C setBlock 1,2,3 ordertest:stone/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:stone/B []
+C setBlock 1,2,3 -> true
+C setBlock 17,2,-5 ordertest:stone/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:stone/B []
+C setBlock 17,2,-5 -> true
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=1 blockChangeCount=1
+world {1,2,3=ordertest:stone/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:stone/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:stone/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+W applySideEffects 1,2,3 ordertest:stone/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:stone/B}
+
+### defaultChain
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:dirt/B
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+-- close
+C setBlock 1,2,3 ordertest:dirt/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:dirt/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:air/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:dirt/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:dirt/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=4 blockChangeCount=4
+world {1,2,3=ordertest:dirt/B, 1,3,3=ordertest:air/B, 17,2,-5=ordertest:dirt/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:dirt/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:dirt/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### maskSetThenCleared
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+mask test 1,2,3
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+mask test 17,2,-5
+H setBlock 17,2,-5 -> false
+< false
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+mask test 1,2,3
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+mask test 1,3,3
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+H getFullBlock 17,2,-5 -> ordertest:air/B
+< ordertest:air/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+mask test 1,2,3
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:glass/S
+H setBlock 17,2,-5 ordertest:glass/S
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:glass/S
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+-- close
+C setBlock 1,2,3 ordertest:dirt/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:dirt/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:air/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:glass/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:glass/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=4 blockChangeCount=4
+world {1,2,3=ordertest:dirt/B, 1,3,3=ordertest:air/B, 17,2,-5=ordertest:glass/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:glass/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:dirt/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 17,2,-5 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,2,3 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### multiStageReorder
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+C getBlock 1,2,3
+C getBlock 1,2,3 -> ordertest:air/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:dirt/B
+C getBlock 17,2,-5
+C getBlock 17,2,-5 -> ordertest:air/S
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+C getBlock 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+C getBlock 1,2,3 -> ordertest:air/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+C getBlock 1,3,3
+C getBlock 1,3,3 -> ordertest:glass/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+-- close
+C setBlock 1,2,3 ordertest:dirt/B
+W checkLoadedChunk 1,2,3
+W setBlock 1,2,3 ordertest:dirt/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W setBlock 1,3,3 ordertest:air/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:dirt/B
+W checkLoadedChunk 17,2,-5
+W setBlock 17,2,-5 ordertest:dirt/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+changeSet size=4 blockChangeCount=4
+world {1,2,3=ordertest:dirt/B, 1,3,3=ordertest:air/B, 17,2,-5=ordertest:dirt/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:dirt/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:dirt/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### noBuffering
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:dirt/B
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+-- close
+C setBlock 1,2,3 ordertest:dirt/B
+W checkLoadedChunk 1,2,3
+W setBlock 1,2,3 ordertest:dirt/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W setBlock 1,3,3 ordertest:air/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:dirt/B
+W checkLoadedChunk 17,2,-5
+W setBlock 17,2,-5 ordertest:dirt/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+changeSet size=4 blockChangeCount=4
+world {1,2,3=ordertest:dirt/B, 1,3,3=ordertest:air/B, 17,2,-5=ordertest:dirt/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:dirt/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:dirt/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### noReorderWithChunkBatching
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:dirt/B
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+-- close
+C setBlock 17,2,-5 ordertest:dirt/B
+W checkLoadedChunk 17,2,-5
+W setBlock 17,2,-5 ordertest:dirt/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 17,2,-5 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W setBlock 1,3,3 ordertest:air/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,3,3 -> true
+C setBlock 1,2,3 ordertest:dirt/B
+W checkLoadedChunk 1,2,3
+W setBlock 1,2,3 ordertest:dirt/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,2,3 -> true
+W sendBiomeUpdates [0,0]
+changeSet size=4 blockChangeCount=4
+world {1,2,3=ordertest:dirt/B, 1,3,3=ordertest:air/B, 17,2,-5=ordertest:dirt/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:dirt/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:dirt/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### sideEffects
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:dirt/B
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+C setBlock 1,2,3 ordertest:dirt/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:dirt/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:air/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:dirt/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:dirt/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NETWORK, POI_UPDATE]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NETWORK, POI_UPDATE]
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NETWORK, POI_UPDATE]
+W sendBiomeUpdates [0,0]
+> setBlock 17,2,-5 ordertest:glass/S
+H setBlock 17,2,-5 ordertest:glass/S
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:dirt/B
+C getFullBlock 17,2,-5 -> ordertest:dirt/B
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+R setBlock 17,2,-5 ordertest:glass/S
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,3,3 ordertest:glass/S
+H setBlock 1,3,3 ordertest:glass/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:air/B
+C getFullBlock 1,3,3 -> ordertest:air/B
+R getFullBlock 1,3,3 -> ordertest:air/B
+R setBlock 1,3,3 ordertest:glass/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+-- close
+C setBlock 17,2,-5 ordertest:glass/B
+W checkLoadedChunk 17,2,-5
+W setBlock 17,2,-5 ordertest:glass/B [NETWORK, POI_UPDATE]
+C setBlock 17,2,-5 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W setBlock 1,3,3 ordertest:glass/B [NETWORK, POI_UPDATE]
+C setBlock 1,3,3 -> true
+W sendBiomeUpdates [0,0]
+changeSet size=4 blockChangeCount=4
+world {1,2,3=ordertest:dirt/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:glass/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:dirt/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:glass/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### stagesAndBypasses
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> smartSetBlock
+C setBlock 1,2,3 ordertest:stone/S
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:stone/S []
+C setBlock 1,2,3 -> true
+< true
+> rawSetBlock
+R setBlock 17,2,-5 ordertest:dirt/S
+R setBlock 17,2,-5 -> true
+< true
+> setBlock BEFORE_REORDER
+C setBlock 1,3,3 ordertest:glass/S
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:glass/S []
+C setBlock 1,3,3 -> true
+< true
+> setBlock BEFORE_HISTORY out of world
+< false
+> getBiome
+H getBiome 1,2,3
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+< ordertest:ocean
+-- close
+C setBlock 17,2,-5 ordertest:dirt/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:dirt/B []
+C setBlock 17,2,-5 -> true
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=0 blockChangeCount=0
+world {1,2,3=ordertest:stone/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:dirt/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+world {1,2,3=ordertest:stone/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:dirt/B}
+
+### survivalStripNbtBuffered
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 17,2,-5 ordertest:chest/B+nbt
+H setBlock 17,2,-5 ordertest:chest/B+nbt
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:chest/B+nbt
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:chest/B+nbt
+H setBlock 1,2,3 ordertest:chest/B+nbt
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:chest/B+nbt
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+-- close
+C setBlock 17,2,-5 ordertest:chest/B+nbt
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:air/S
+W setBlock 17,2,-5 ordertest:chest/B []
+C setBlock 17,2,-5 -> true
+C setBlock 1,2,3 ordertest:chest/B+nbt
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:chest/B []
+C setBlock 1,2,3 -> true
+W applySideEffects 17,2,-5 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=2 blockChangeCount=2
+world {1,2,3=ordertest:chest/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:chest/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:chest/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:chest/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W applySideEffects 1,2,3 ordertest:chest/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:chest/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### survivalToolUseAndStripNbt
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+> setBlock 17,2,-5 ordertest:chest/B+nbt
+H setBlock 17,2,-5 ordertest:chest/B+nbt
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+R setBlock 17,2,-5 ordertest:chest/B+nbt
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:chest/B+nbt
+R setBlock 17,2,-5 ordertest:dirt/B
+R setBlock 17,2,-5 -> true
+H setBlock 17,2,-5 -> true
+< true
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+R getFullBlock 17,2,-5 -> ordertest:dirt/B
+H getFullBlock 17,2,-5 -> ordertest:dirt/B
+< ordertest:dirt/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+> setBlock 1,2,3 ordertest:chest/B+nbt
+H setBlock 1,2,3 ordertest:chest/B+nbt
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:dirt/B
+R setBlock 1,2,3 ordertest:chest/B+nbt
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,2,3 ordertest:air/S
+H setBlock 1,2,3 ordertest:air/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:chest/B+nbt
+R setBlock 1,2,3 ordertest:air/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+-- close
+C setBlock 17,2,-5 ordertest:dirt/B
+W checkLoadedChunk 17,2,-5
+W setBlock 17,2,-5 ordertest:dirt/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 17,2,-5 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W setBlock 1,2,3 ordertest:air/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W setBlock 1,3,3 ordertest:air/B [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+C setBlock 1,3,3 -> true
+W sendBiomeUpdates [0,0]
+changeSet size=4 blockChangeCount=4
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:air/B, 17,2,-5=ordertest:dirt/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+R setBlock 17,2,-5 ordertest:air/B
+R setBlock 17,2,-5 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+C setBlock 17,2,-5 ordertest:air/B
+W checkLoadedChunk 17,2,-5
+W getBlock 17,2,-5 -> ordertest:dirt/S
+W setBlock 17,2,-5 ordertest:air/B []
+C setBlock 17,2,-5 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 17,2,-5 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 17,2,-5=ordertest:air/B}
+
+### tracing
+event BEFORE_CHANGE extent=TracingExtent
+event BEFORE_REORDER extent=TracingExtent
+event BEFORE_HISTORY extent=TracingExtent
+-- script
+> setBlock 1,2,3 ordertest:stone/S
+H setBlock 1,2,3 ordertest:stone/S
+R getFullBlock 1,2,3
+C getFullBlock 1,2,3
+W getFullBlock 1,2,3 -> ordertest:air/B
+C getFullBlock 1,2,3 -> ordertest:air/B
+R getFullBlock 1,2,3 -> ordertest:air/B
+R setBlock 1,2,3 ordertest:stone/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 ordertest:dirt/B
+H setBlock 17,2,-5 -> false
+< false
+> setBlock 1,2,3 ordertest:dirt/S
+H setBlock 1,2,3 ordertest:dirt/S
+R getFullBlock 1,2,3
+R getFullBlock 1,2,3 -> ordertest:stone/B
+R setBlock 1,2,3 ordertest:dirt/S
+R setBlock 1,2,3 -> true
+H setBlock 1,2,3 -> true
+< true
+> setBlock 1,3,3 ordertest:air/S
+H setBlock 1,3,3 ordertest:air/S
+R getFullBlock 1,3,3
+C getFullBlock 1,3,3
+W getFullBlock 1,3,3 -> ordertest:glass/B
+C getFullBlock 1,3,3 -> ordertest:glass/B
+R getFullBlock 1,3,3 -> ordertest:glass/B
+R setBlock 1,3,3 ordertest:air/S
+R setBlock 1,3,3 -> true
+H setBlock 1,3,3 -> true
+< true
+> setBlock 0,400,0 ordertest:stone/S
+< false
+> getBlockWithBuffer 1,2,3
+H getBlock 1,2,3
+R getBlock 1,2,3
+R getBlock 1,2,3 -> ordertest:dirt/S
+H getBlock 1,2,3 -> ordertest:dirt/S
+< ordertest:dirt/S
+> getFullBlockWithBuffer 17,2,-5
+H getFullBlock 17,2,-5
+R getFullBlock 17,2,-5
+C getFullBlock 17,2,-5
+W getFullBlock 17,2,-5 -> ordertest:air/B
+C getFullBlock 17,2,-5 -> ordertest:air/B
+R getFullBlock 17,2,-5 -> ordertest:air/B
+H getFullBlock 17,2,-5 -> ordertest:air/B
+< ordertest:air/B
+> setBiome 1,2,3
+H setBiome 1,2,3 ordertest:plains
+R getBiome 1,2,3
+C getBiome 1,2,3
+W getBiome 1,2,3 -> ordertest:ocean
+R setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 ordertest:plains
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:plains
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+H setBiome 1,2,3 -> true
+< true
+-- close
+C setBlock 1,2,3 ordertest:dirt/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:air/S
+W setBlock 1,2,3 ordertest:dirt/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:air/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:glass/S
+W setBlock 1,3,3 ordertest:air/B []
+C setBlock 1,3,3 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:glass/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+changeSet size=3 blockChangeCount=3
+world {1,2,3=ordertest:dirt/B, 1,3,3=ordertest:air/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+R setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 ordertest:ocean
+W checkLoadedChunk 1,2,3
+W setBiome 1,2,3 ordertest:ocean
+C setBiome 1,2,3 -> true
+R setBiome 1,2,3 -> true
+R setBlock 1,3,3 ordertest:glass/B
+R setBlock 1,3,3 -> true
+R setBlock 1,2,3 ordertest:air/B
+R setBlock 1,2,3 -> true
+C setBlock 1,2,3 ordertest:air/B
+W checkLoadedChunk 1,2,3
+W getBlock 1,2,3 -> ordertest:dirt/S
+W setBlock 1,2,3 ordertest:air/B []
+C setBlock 1,2,3 -> true
+C setBlock 1,3,3 ordertest:glass/B
+W checkLoadedChunk 1,3,3
+W getBlock 1,3,3 -> ordertest:air/S
+W setBlock 1,3,3 ordertest:glass/B []
+C setBlock 1,3,3 -> true
+W sendBiomeUpdates [0,0]
+W applySideEffects 1,2,3 ordertest:dirt/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W applySideEffects 1,3,3 ordertest:air/S [LIGHTING, NEIGHBORS, NETWORK, POI_UPDATE, UPDATE]
+W sendBiomeUpdates [0,0]
+world {1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B}
+actor printDebug TranslatableComponentImpl{key=worldedit.trace.action-failed, args=[TextComponentImpl{content=[SET_BLOCK], children=[], style=Style{color=null, obfuscated=null, bold=null, strikethrough=null, underlined=null, italic=null, clickEvent=null, hoverEvent=null, insertion=null}}, TextComponentImpl{content=(0, 400, 0), children=[], style=Style{color=null, obfuscated=null, bold=null, strikethrough=null, underlined=null, italic=null, clickEvent=null, hoverEvent=null, insertion=null}}, TextComponentImpl{content=com.sk89q.worldedit.extent.validation.DataValidatorExtent, children=[], style=Style{color=null, obfuscated=null, bold=null, strikethrough=null, underlined=null, italic=null, clickEvent=null, hoverEvent=null, insertion=null}}], children=[], style=Style{color=null, obfuscated=null, bold=null, strikethrough=null, underlined=null, italic=null, clickEvent=null, hoverEvent=null, insertion=null}}
+actor printDebug TranslatableComponentImpl{key=worldedit.trace.action-failed, args=[TextComponentImpl{content=[SET_BLOCK], children=[], style=Style{color=null, obfuscated=null, bold=null, strikethrough=null, underlined=null, italic=null, clickEvent=null, hoverEvent=null, insertion=null}}, TextComponentImpl{content=(17, 2, -5), children=[], style=Style{color=null, obfuscated=null, bold=null, strikethrough=null, underlined=null, italic=null, clickEvent=null, hoverEvent=null, insertion=null}}, TextComponentImpl{content=com.sk89q.worldedit.extent.MaskingExtent, children=[], style=Style{color=null, obfuscated=null, bold=null, strikethrough=null, underlined=null, italic=null, clickEvent=null, hoverEvent=null, insertion=null}}], children=[], style=Style{color=null, obfuscated=null, bold=null, strikethrough=null, underlined=null, italic=null, clickEvent=null, hoverEvent=null, insertion=null}}
+
+### watchdog
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+-- script
+ticks 7
+ticks 10
+> setBlock 1,2,3 ordertest:dirt/S
+< true
+ticks 10
+-- close
+changeSet size=261 blockChangeCount=261
+world {0,0,0=ordertest:stone/B, 1,0,0=ordertest:stone/B, 1,2,3=ordertest:dirt/B, 1,3,3=ordertest:glass/B, 10,0,0=ordertest:stone/B, 100,0,0=ordertest:stone/B, 101,0,0=ordertest:stone/B, 102,0,0=ordertest:stone/B, 103,0,0=ordertest:stone/B, 104,0,0=ordertest:stone/B, 105,0,0=ordertest:stone/B, 106,0,0=ordertest:stone/B, 107,0,0=ordertest:stone/B, 108,0,0=ordertest:stone/B, 109,0,0=ordertest:stone/B, 11,0,0=ordertest:stone/B, 110,0,0=ordertest:stone/B, 111,0,0=ordertest:stone/B, 112,0,0=ordertest:stone/B, 113,0,0=ordertest:stone/B, 114,0,0=ordertest:stone/B, 115,0,0=ordertest:stone/B, 116,0,0=ordertest:stone/B, 117,0,0=ordertest:stone/B, 118,0,0=ordertest:stone/B, 119,0,0=ordertest:stone/B, 12,0,0=ordertest:stone/B, 120,0,0=ordertest:stone/B, 121,0,0=ordertest:stone/B, 122,0,0=ordertest:stone/B, 123,0,0=ordertest:stone/B, 124,0,0=ordertest:stone/B, 125,0,0=ordertest:stone/B, 126,0,0=ordertest:stone/B, 127,0,0=ordertest:stone/B, 128,0,0=ordertest:stone/B, 129,0,0=ordertest:stone/B, 13,0,0=ordertest:stone/B, 130,0,0=ordertest:stone/B, 131,0,0=ordertest:stone/B, 132,0,0=ordertest:stone/B, 133,0,0=ordertest:stone/B, 134,0,0=ordertest:stone/B, 135,0,0=ordertest:stone/B, 136,0,0=ordertest:stone/B, 137,0,0=ordertest:stone/B, 138,0,0=ordertest:stone/B, 139,0,0=ordertest:stone/B, 14,0,0=ordertest:stone/B, 140,0,0=ordertest:stone/B, 141,0,0=ordertest:stone/B, 142,0,0=ordertest:stone/B, 143,0,0=ordertest:stone/B, 144,0,0=ordertest:stone/B, 145,0,0=ordertest:stone/B, 146,0,0=ordertest:stone/B, 147,0,0=ordertest:stone/B, 148,0,0=ordertest:stone/B, 149,0,0=ordertest:stone/B, 15,0,0=ordertest:stone/B, 150,0,0=ordertest:stone/B, 151,0,0=ordertest:stone/B, 152,0,0=ordertest:stone/B, 153,0,0=ordertest:stone/B, 154,0,0=ordertest:stone/B, 155,0,0=ordertest:stone/B, 156,0,0=ordertest:stone/B, 157,0,0=ordertest:stone/B, 158,0,0=ordertest:stone/B, 159,0,0=ordertest:stone/B, 16,0,0=ordertest:stone/B, 160,0,0=ordertest:stone/B, 161,0,0=ordertest:stone/B, 162,0,0=ordertest:stone/B, 163,0,0=ordertest:stone/B, 164,0,0=ordertest:stone/B, 165,0,0=ordertest:stone/B, 166,0,0=ordertest:stone/B, 167,0,0=ordertest:stone/B, 168,0,0=ordertest:stone/B, 169,0,0=ordertest:stone/B, 17,0,0=ordertest:stone/B, 170,0,0=ordertest:stone/B, 171,0,0=ordertest:stone/B, 172,0,0=ordertest:stone/B, 173,0,0=ordertest:stone/B, 174,0,0=ordertest:stone/B, 175,0,0=ordertest:stone/B, 176,0,0=ordertest:stone/B, 177,0,0=ordertest:stone/B, 178,0,0=ordertest:stone/B, 179,0,0=ordertest:stone/B, 18,0,0=ordertest:stone/B, 180,0,0=ordertest:stone/B, 181,0,0=ordertest:stone/B, 182,0,0=ordertest:stone/B, 183,0,0=ordertest:stone/B, 184,0,0=ordertest:stone/B, 185,0,0=ordertest:stone/B, 186,0,0=ordertest:stone/B, 187,0,0=ordertest:stone/B, 188,0,0=ordertest:stone/B, 189,0,0=ordertest:stone/B, 19,0,0=ordertest:stone/B, 190,0,0=ordertest:stone/B, 191,0,0=ordertest:stone/B, 192,0,0=ordertest:stone/B, 193,0,0=ordertest:stone/B, 194,0,0=ordertest:stone/B, 195,0,0=ordertest:stone/B, 196,0,0=ordertest:stone/B, 197,0,0=ordertest:stone/B, 198,0,0=ordertest:stone/B, 199,0,0=ordertest:stone/B, 2,0,0=ordertest:stone/B, 20,0,0=ordertest:stone/B, 200,0,0=ordertest:stone/B, 201,0,0=ordertest:stone/B, 202,0,0=ordertest:stone/B, 203,0,0=ordertest:stone/B, 204,0,0=ordertest:stone/B, 205,0,0=ordertest:stone/B, 206,0,0=ordertest:stone/B, 207,0,0=ordertest:stone/B, 208,0,0=ordertest:stone/B, 209,0,0=ordertest:stone/B, 21,0,0=ordertest:stone/B, 210,0,0=ordertest:stone/B, 211,0,0=ordertest:stone/B, 212,0,0=ordertest:stone/B, 213,0,0=ordertest:stone/B, 214,0,0=ordertest:stone/B, 215,0,0=ordertest:stone/B, 216,0,0=ordertest:stone/B, 217,0,0=ordertest:stone/B, 218,0,0=ordertest:stone/B, 219,0,0=ordertest:stone/B, 22,0,0=ordertest:stone/B, 220,0,0=ordertest:stone/B, 221,0,0=ordertest:stone/B, 222,0,0=ordertest:stone/B, 223,0,0=ordertest:stone/B, 224,0,0=ordertest:stone/B, 225,0,0=ordertest:stone/B, 226,0,0=ordertest:stone/B, 227,0,0=ordertest:stone/B, 228,0,0=ordertest:stone/B, 229,0,0=ordertest:stone/B, 23,0,0=ordertest:stone/B, 230,0,0=ordertest:stone/B, 231,0,0=ordertest:stone/B, 232,0,0=ordertest:stone/B, 233,0,0=ordertest:stone/B, 234,0,0=ordertest:stone/B, 235,0,0=ordertest:stone/B, 236,0,0=ordertest:stone/B, 237,0,0=ordertest:stone/B, 238,0,0=ordertest:stone/B, 239,0,0=ordertest:stone/B, 24,0,0=ordertest:stone/B, 240,0,0=ordertest:stone/B, 241,0,0=ordertest:stone/B, 242,0,0=ordertest:stone/B, 243,0,0=ordertest:stone/B, 244,0,0=ordertest:stone/B, 245,0,0=ordertest:stone/B, 246,0,0=ordertest:stone/B, 247,0,0=ordertest:stone/B, 248,0,0=ordertest:stone/B, 249,0,0=ordertest:stone/B, 25,0,0=ordertest:stone/B, 250,0,0=ordertest:stone/B, 251,0,0=ordertest:stone/B, 252,0,0=ordertest:stone/B, 253,0,0=ordertest:stone/B, 254,0,0=ordertest:stone/B, 255,0,0=ordertest:stone/B, 256,0,0=ordertest:stone/B, 257,0,0=ordertest:stone/B, 258,0,0=ordertest:stone/B, 259,0,0=ordertest:stone/B, 26,0,0=ordertest:stone/B, 27,0,0=ordertest:stone/B, 28,0,0=ordertest:stone/B, 29,0,0=ordertest:stone/B, 3,0,0=ordertest:stone/B, 30,0,0=ordertest:stone/B, 31,0,0=ordertest:stone/B, 32,0,0=ordertest:stone/B, 33,0,0=ordertest:stone/B, 34,0,0=ordertest:stone/B, 35,0,0=ordertest:stone/B, 36,0,0=ordertest:stone/B, 37,0,0=ordertest:stone/B, 38,0,0=ordertest:stone/B, 39,0,0=ordertest:stone/B, 4,0,0=ordertest:stone/B, 40,0,0=ordertest:stone/B, 41,0,0=ordertest:stone/B, 42,0,0=ordertest:stone/B, 43,0,0=ordertest:stone/B, 44,0,0=ordertest:stone/B, 45,0,0=ordertest:stone/B, 46,0,0=ordertest:stone/B, 47,0,0=ordertest:stone/B, 48,0,0=ordertest:stone/B, 49,0,0=ordertest:stone/B, 5,0,0=ordertest:stone/B, 50,0,0=ordertest:stone/B, 51,0,0=ordertest:stone/B, 52,0,0=ordertest:stone/B, 53,0,0=ordertest:stone/B, 54,0,0=ordertest:stone/B, 55,0,0=ordertest:stone/B, 56,0,0=ordertest:stone/B, 57,0,0=ordertest:stone/B, 58,0,0=ordertest:stone/B, 59,0,0=ordertest:stone/B, 6,0,0=ordertest:stone/B, 60,0,0=ordertest:stone/B, 61,0,0=ordertest:stone/B, 62,0,0=ordertest:stone/B, 63,0,0=ordertest:stone/B, 64,0,0=ordertest:stone/B, 65,0,0=ordertest:stone/B, 66,0,0=ordertest:stone/B, 67,0,0=ordertest:stone/B, 68,0,0=ordertest:stone/B, 69,0,0=ordertest:stone/B, 7,0,0=ordertest:stone/B, 70,0,0=ordertest:stone/B, 71,0,0=ordertest:stone/B, 72,0,0=ordertest:stone/B, 73,0,0=ordertest:stone/B, 74,0,0=ordertest:stone/B, 75,0,0=ordertest:stone/B, 76,0,0=ordertest:stone/B, 77,0,0=ordertest:stone/B, 78,0,0=ordertest:stone/B, 79,0,0=ordertest:stone/B, 8,0,0=ordertest:stone/B, 80,0,0=ordertest:stone/B, 81,0,0=ordertest:stone/B, 82,0,0=ordertest:stone/B, 83,0,0=ordertest:stone/B, 84,0,0=ordertest:stone/B, 85,0,0=ordertest:stone/B, 86,0,0=ordertest:stone/B, 87,0,0=ordertest:stone/B, 88,0,0=ordertest:stone/B, 89,0,0=ordertest:stone/B, 9,0,0=ordertest:stone/B, 90,0,0=ordertest:stone/B, 91,0,0=ordertest:stone/B, 92,0,0=ordertest:stone/B, 93,0,0=ordertest:stone/B, 94,0,0=ordertest:stone/B, 95,0,0=ordertest:stone/B, 96,0,0=ordertest:stone/B, 97,0,0=ordertest:stone/B, 98,0,0=ordertest:stone/B, 99,0,0=ordertest:stone/B}
+-- undo
+event BEFORE_CHANGE extent=BlockBagExtent
+event BEFORE_REORDER extent=ChunkBatchingExtent
+event BEFORE_HISTORY extent=BlockChangeLimiter
+world {0,0,0=ordertest:air/B, 1,0,0=ordertest:air/B, 1,2,3=ordertest:air/B, 1,3,3=ordertest:glass/B, 10,0,0=ordertest:air/B, 100,0,0=ordertest:air/B, 101,0,0=ordertest:air/B, 102,0,0=ordertest:air/B, 103,0,0=ordertest:air/B, 104,0,0=ordertest:air/B, 105,0,0=ordertest:air/B, 106,0,0=ordertest:air/B, 107,0,0=ordertest:air/B, 108,0,0=ordertest:air/B, 109,0,0=ordertest:air/B, 11,0,0=ordertest:air/B, 110,0,0=ordertest:air/B, 111,0,0=ordertest:air/B, 112,0,0=ordertest:air/B, 113,0,0=ordertest:air/B, 114,0,0=ordertest:air/B, 115,0,0=ordertest:air/B, 116,0,0=ordertest:air/B, 117,0,0=ordertest:air/B, 118,0,0=ordertest:air/B, 119,0,0=ordertest:air/B, 12,0,0=ordertest:air/B, 120,0,0=ordertest:air/B, 121,0,0=ordertest:air/B, 122,0,0=ordertest:air/B, 123,0,0=ordertest:air/B, 124,0,0=ordertest:air/B, 125,0,0=ordertest:air/B, 126,0,0=ordertest:air/B, 127,0,0=ordertest:air/B, 128,0,0=ordertest:air/B, 129,0,0=ordertest:air/B, 13,0,0=ordertest:air/B, 130,0,0=ordertest:air/B, 131,0,0=ordertest:air/B, 132,0,0=ordertest:air/B, 133,0,0=ordertest:air/B, 134,0,0=ordertest:air/B, 135,0,0=ordertest:air/B, 136,0,0=ordertest:air/B, 137,0,0=ordertest:air/B, 138,0,0=ordertest:air/B, 139,0,0=ordertest:air/B, 14,0,0=ordertest:air/B, 140,0,0=ordertest:air/B, 141,0,0=ordertest:air/B, 142,0,0=ordertest:air/B, 143,0,0=ordertest:air/B, 144,0,0=ordertest:air/B, 145,0,0=ordertest:air/B, 146,0,0=ordertest:air/B, 147,0,0=ordertest:air/B, 148,0,0=ordertest:air/B, 149,0,0=ordertest:air/B, 15,0,0=ordertest:air/B, 150,0,0=ordertest:air/B, 151,0,0=ordertest:air/B, 152,0,0=ordertest:air/B, 153,0,0=ordertest:air/B, 154,0,0=ordertest:air/B, 155,0,0=ordertest:air/B, 156,0,0=ordertest:air/B, 157,0,0=ordertest:air/B, 158,0,0=ordertest:air/B, 159,0,0=ordertest:air/B, 16,0,0=ordertest:air/B, 160,0,0=ordertest:air/B, 161,0,0=ordertest:air/B, 162,0,0=ordertest:air/B, 163,0,0=ordertest:air/B, 164,0,0=ordertest:air/B, 165,0,0=ordertest:air/B, 166,0,0=ordertest:air/B, 167,0,0=ordertest:air/B, 168,0,0=ordertest:air/B, 169,0,0=ordertest:air/B, 17,0,0=ordertest:air/B, 170,0,0=ordertest:air/B, 171,0,0=ordertest:air/B, 172,0,0=ordertest:air/B, 173,0,0=ordertest:air/B, 174,0,0=ordertest:air/B, 175,0,0=ordertest:air/B, 176,0,0=ordertest:air/B, 177,0,0=ordertest:air/B, 178,0,0=ordertest:air/B, 179,0,0=ordertest:air/B, 18,0,0=ordertest:air/B, 180,0,0=ordertest:air/B, 181,0,0=ordertest:air/B, 182,0,0=ordertest:air/B, 183,0,0=ordertest:air/B, 184,0,0=ordertest:air/B, 185,0,0=ordertest:air/B, 186,0,0=ordertest:air/B, 187,0,0=ordertest:air/B, 188,0,0=ordertest:air/B, 189,0,0=ordertest:air/B, 19,0,0=ordertest:air/B, 190,0,0=ordertest:air/B, 191,0,0=ordertest:air/B, 192,0,0=ordertest:air/B, 193,0,0=ordertest:air/B, 194,0,0=ordertest:air/B, 195,0,0=ordertest:air/B, 196,0,0=ordertest:air/B, 197,0,0=ordertest:air/B, 198,0,0=ordertest:air/B, 199,0,0=ordertest:air/B, 2,0,0=ordertest:air/B, 20,0,0=ordertest:air/B, 200,0,0=ordertest:air/B, 201,0,0=ordertest:air/B, 202,0,0=ordertest:air/B, 203,0,0=ordertest:air/B, 204,0,0=ordertest:air/B, 205,0,0=ordertest:air/B, 206,0,0=ordertest:air/B, 207,0,0=ordertest:air/B, 208,0,0=ordertest:air/B, 209,0,0=ordertest:air/B, 21,0,0=ordertest:air/B, 210,0,0=ordertest:air/B, 211,0,0=ordertest:air/B, 212,0,0=ordertest:air/B, 213,0,0=ordertest:air/B, 214,0,0=ordertest:air/B, 215,0,0=ordertest:air/B, 216,0,0=ordertest:air/B, 217,0,0=ordertest:air/B, 218,0,0=ordertest:air/B, 219,0,0=ordertest:air/B, 22,0,0=ordertest:air/B, 220,0,0=ordertest:air/B, 221,0,0=ordertest:air/B, 222,0,0=ordertest:air/B, 223,0,0=ordertest:air/B, 224,0,0=ordertest:air/B, 225,0,0=ordertest:air/B, 226,0,0=ordertest:air/B, 227,0,0=ordertest:air/B, 228,0,0=ordertest:air/B, 229,0,0=ordertest:air/B, 23,0,0=ordertest:air/B, 230,0,0=ordertest:air/B, 231,0,0=ordertest:air/B, 232,0,0=ordertest:air/B, 233,0,0=ordertest:air/B, 234,0,0=ordertest:air/B, 235,0,0=ordertest:air/B, 236,0,0=ordertest:air/B, 237,0,0=ordertest:air/B, 238,0,0=ordertest:air/B, 239,0,0=ordertest:air/B, 24,0,0=ordertest:air/B, 240,0,0=ordertest:air/B, 241,0,0=ordertest:air/B, 242,0,0=ordertest:air/B, 243,0,0=ordertest:air/B, 244,0,0=ordertest:air/B, 245,0,0=ordertest:air/B, 246,0,0=ordertest:air/B, 247,0,0=ordertest:air/B, 248,0,0=ordertest:air/B, 249,0,0=ordertest:air/B, 25,0,0=ordertest:air/B, 250,0,0=ordertest:air/B, 251,0,0=ordertest:air/B, 252,0,0=ordertest:air/B, 253,0,0=ordertest:air/B, 254,0,0=ordertest:air/B, 255,0,0=ordertest:air/B, 256,0,0=ordertest:air/B, 257,0,0=ordertest:air/B, 258,0,0=ordertest:air/B, 259,0,0=ordertest:air/B, 26,0,0=ordertest:air/B, 27,0,0=ordertest:air/B, 28,0,0=ordertest:air/B, 29,0,0=ordertest:air/B, 3,0,0=ordertest:air/B, 30,0,0=ordertest:air/B, 31,0,0=ordertest:air/B, 32,0,0=ordertest:air/B, 33,0,0=ordertest:air/B, 34,0,0=ordertest:air/B, 35,0,0=ordertest:air/B, 36,0,0=ordertest:air/B, 37,0,0=ordertest:air/B, 38,0,0=ordertest:air/B, 39,0,0=ordertest:air/B, 4,0,0=ordertest:air/B, 40,0,0=ordertest:air/B, 41,0,0=ordertest:air/B, 42,0,0=ordertest:air/B, 43,0,0=ordertest:air/B, 44,0,0=ordertest:air/B, 45,0,0=ordertest:air/B, 46,0,0=ordertest:air/B, 47,0,0=ordertest:air/B, 48,0,0=ordertest:air/B, 49,0,0=ordertest:air/B, 5,0,0=ordertest:air/B, 50,0,0=ordertest:air/B, 51,0,0=ordertest:air/B, 52,0,0=ordertest:air/B, 53,0,0=ordertest:air/B, 54,0,0=ordertest:air/B, 55,0,0=ordertest:air/B, 56,0,0=ordertest:air/B, 57,0,0=ordertest:air/B, 58,0,0=ordertest:air/B, 59,0,0=ordertest:air/B, 6,0,0=ordertest:air/B, 60,0,0=ordertest:air/B, 61,0,0=ordertest:air/B, 62,0,0=ordertest:air/B, 63,0,0=ordertest:air/B, 64,0,0=ordertest:air/B, 65,0,0=ordertest:air/B, 66,0,0=ordertest:air/B, 67,0,0=ordertest:air/B, 68,0,0=ordertest:air/B, 69,0,0=ordertest:air/B, 7,0,0=ordertest:air/B, 70,0,0=ordertest:air/B, 71,0,0=ordertest:air/B, 72,0,0=ordertest:air/B, 73,0,0=ordertest:air/B, 74,0,0=ordertest:air/B, 75,0,0=ordertest:air/B, 76,0,0=ordertest:air/B, 77,0,0=ordertest:air/B, 78,0,0=ordertest:air/B, 79,0,0=ordertest:air/B, 8,0,0=ordertest:air/B, 80,0,0=ordertest:air/B, 81,0,0=ordertest:air/B, 82,0,0=ordertest:air/B, 83,0,0=ordertest:air/B, 84,0,0=ordertest:air/B, 85,0,0=ordertest:air/B, 86,0,0=ordertest:air/B, 87,0,0=ordertest:air/B, 88,0,0=ordertest:air/B, 89,0,0=ordertest:air/B, 9,0,0=ordertest:air/B, 90,0,0=ordertest:air/B, 91,0,0=ordertest:air/B, 92,0,0=ordertest:air/B, 93,0,0=ordertest:air/B, 94,0,0=ordertest:air/B, 95,0,0=ordertest:air/B, 96,0,0=ordertest:air/B, 97,0,0=ordertest:air/B, 98,0,0=ordertest:air/B, 99,0,0=ordertest:air/B}
+

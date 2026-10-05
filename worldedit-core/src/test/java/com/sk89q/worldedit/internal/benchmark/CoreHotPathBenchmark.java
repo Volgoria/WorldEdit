@@ -23,9 +23,11 @@ import com.sk89q.worldedit.BaseWorldEditTest;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.extension.platform.Watchdog;
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.function.block.BlockDistributionCounter;
 import com.sk89q.worldedit.function.block.Counter;
+import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.function.mask.RegionMask;
 import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operations;
@@ -38,6 +40,7 @@ import com.sk89q.worldedit.internal.block.BlockStateIdAccess;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.registry.Registry;
+import com.sk89q.worldedit.util.SideEffectSet;
 import com.sk89q.worldedit.util.collection.BlockMap;
 import com.sk89q.worldedit.util.collection.LocatedBlockList;
 import com.sk89q.worldedit.util.test.InMemoryWorld;
@@ -442,6 +445,61 @@ class CoreHotPathBenchmark extends BaseWorldEditTest {
             assertEquals(region.getVolume(), changed);
             return (long) changed + world.blocks().size();
         });
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void editSessionRealisticChain1M() throws Exception {
+        when(MOCKED_PLATFORM.getRegistries()).thenReturn(SimpleMaterialRegistries.create());
+        BlockState air = new BlockType("benchreal:air").getDefaultState();
+        BlockStateIdAccess.register(air, BlockStateIdAccess.invalidId());
+        for (BlockState state : palette) {
+            if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(state))) {
+                BlockStateIdAccess.register(state, BlockStateIdAccess.invalidId());
+            }
+        }
+        long[] ticks = new long[1];
+        Watchdog watchdog = () -> ticks[0]++;
+        when(MOCKED_PLATFORM.getWatchdog()).thenReturn(watchdog);
+        try {
+            // 100 * 100 * 100 = 1M blocks
+            CuboidRegion region = cube(100);
+            // A mask that every block passes, but that is tested like a user's mask
+            Mask mask = new RegionMask(new CuboidRegion(region.getMinimumPoint().subtract(1, 1, 1),
+                region.getMaximumPoint().add(1, 1, 1)));
+            Pattern pattern = new Pattern() {
+                @Override
+                public BaseBlock applyBlock(BlockVector3 pos) {
+                    return palette[(pos.x() * 31 + pos.y() * 7 + pos.z()) & (palette.length - 1)].toBaseBlock();
+                }
+            };
+            String[] phases = {"set", "flush", "undo"};
+            // Configured like LocalSession#createEditSession for a non-op player with a mask
+            benchPhases("EditSession realistic chain 1M", phases, 3, 9, clock -> {
+                InMemoryWorld world = new InMemoryWorld(air, -64, 319);
+                EditSession session = WorldEdit.getInstance().newEditSessionBuilder()
+                    .world(world.world()).maxBlocks(2_000_000).build();
+                session.setMask(mask);
+                session.setSideEffectApplier(SideEffectSet.defaults());
+                session.setReorderMode(EditSession.ReorderMode.FAST);
+                session.getSurvivalExtent().setStripNbt(true);
+                session.setTickingWatchdog(true);
+                int changed;
+                try (session) {
+                    changed = session.setBlocks(region, pattern);
+                    clock.end(0);
+                }
+                clock.end(1);
+                try (EditSession undo = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build()) {
+                    session.undo(undo);
+                }
+                clock.end(2);
+                assertEquals(region.getVolume(), changed);
+                return (long) changed + world.blocks().size() + ticks[0];
+            });
+        } finally {
+            when(MOCKED_PLATFORM.getWatchdog()).thenReturn(null);
+        }
     }
 
     @Test
