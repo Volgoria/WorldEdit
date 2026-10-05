@@ -23,6 +23,7 @@ import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.registry.BlockRegistry;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.OptionalInt;
 import javax.annotation.Nullable;
@@ -35,6 +36,17 @@ public final class BlockStateIdAccess {
     private static final int EXPECTED_BLOCK_COUNT = 2 << 14;
     private static final Int2ObjectOpenHashMap<BlockState> TO_STATE =
         new Int2ObjectOpenHashMap<>(EXPECTED_BLOCK_COUNT);
+    /**
+     * IDs below this are also stored in {@link #byId}. Internal IDs are dense
+     * in practice, so this covers all of them while bounding the array size.
+     */
+    private static final int MAX_ARRAY_ID = 1 << 20;
+    /**
+     * Array mirror of {@link #TO_STATE} for fast lookups, which happen for
+     * every block read on some platforms. Only written under the class lock,
+     * and re-published through the volatile field after every change.
+     */
+    private static volatile BlockState[] byId = new BlockState[0];
 
     static {
         TO_STATE.defaultReturnValue(null);
@@ -69,7 +81,13 @@ public final class BlockStateIdAccess {
     }
 
     public static @Nullable BlockState getBlockStateById(int id) {
-        return TO_STATE.get(id);
+        BlockState[] states = byId;
+        if (id >= 0 && id < states.length) {
+            return states[id];
+        }
+        synchronized (BlockStateIdAccess.class) {
+            return TO_STATE.get(id);
+        }
     }
 
     /**
@@ -86,23 +104,34 @@ public final class BlockStateIdAccess {
 
     private static final BitSet usedIds = new BitSet();
 
-    public static void register(BlockState blockState, int id) {
+    public static synchronized void register(BlockState blockState, int id) {
         int i = isValidInternalId(id) ? id : provideUnusedWorldEditId();
-        BlockState existing = getBlockStateById(id);
+        BlockState existing = TO_STATE.get(i);
         checkState(existing == null || existing == blockState,
             "BlockState %s is using the same block ID (%s) as BlockState %s",
             blockState, i, existing);
         blockStateInternalId.setInternalId(blockState, i);
         TO_STATE.put(i, blockState);
         usedIds.set(i);
+        if (i >= 0 && i < MAX_ARRAY_ID) {
+            BlockState[] states = byId;
+            if (i >= states.length) {
+                // Grow geometrically, so registering every state stays linear
+                int newLength = Math.min(MAX_ARRAY_ID, Math.max(i + 1, states.length * 2));
+                states = Arrays.copyOf(states, newLength);
+            }
+            states[i] = blockState;
+            byId = states;
+        }
     }
 
-    public static void clear() {
+    public static synchronized void clear() {
         for (BlockState value : TO_STATE.values()) {
             blockStateInternalId.setInternalId(value, invalidId());
         }
         TO_STATE.clear();
         usedIds.clear();
+        byId = new BlockState[0];
     }
 
     private BlockStateIdAccess() {

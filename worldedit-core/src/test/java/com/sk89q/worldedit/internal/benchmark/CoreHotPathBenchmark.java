@@ -31,6 +31,7 @@ import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.function.visitor.RecursiveVisitor;
 import com.sk89q.worldedit.function.visitor.RegionVisitor;
+import com.sk89q.worldedit.internal.block.BlockStateIdAccess;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.registry.Registry;
@@ -291,6 +292,53 @@ class CoreHotPathBenchmark extends BaseWorldEditTest {
             }
             // world reads are the expensive part on a real server
             return world.getBlockReads();
+        });
+    }
+
+    @Test
+    void editSessionSetAndUndo() throws Exception {
+        when(MOCKED_PLATFORM.getRegistries()).thenReturn(SimpleMaterialRegistries.create());
+        BlockState air = new BlockType("benchset:air").getDefaultState();
+        // Real platforms give every state an internal ID, which BlockMap relies on
+        BlockStateIdAccess.register(air, BlockStateIdAccess.invalidId());
+        if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(stone))) {
+            BlockStateIdAccess.register(stone, BlockStateIdAccess.invalidId());
+        }
+        CuboidRegion region = cube(64);
+        bench("EditSession set+flush+undo 64^3", () -> {
+            InMemoryWorld world = new InMemoryWorld(air, -64, 319);
+            EditSession session = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build();
+            int changed;
+            try (session) {
+                changed = session.setBlocks(region, stone);
+            }
+            try (EditSession undo = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build()) {
+                session.undo(undo);
+            }
+            return (long) changed + world.blocks().size();
+        });
+    }
+
+    @Test
+    void blockStateIdLookup() throws Exception {
+        // A realistic number of block states, with platform-assigned dense IDs
+        int count = 30_000;
+        int base = 1_000;
+        for (int i = 0; i < count; i++) {
+            BlockState state = new BlockType("benchid:block_" + i).getDefaultState();
+            BlockStateIdAccess.register(state, base + i);
+        }
+        int[] lookups = new int[1 << 22];
+        java.util.Random random = new java.util.Random(42);
+        for (int i = 0; i < lookups.length; i++) {
+            lookups[i] = base + random.nextInt(count);
+        }
+        bench("BlockStateIdAccess.getBlockStateById 4M", () -> {
+            long sum = 0;
+            for (int id : lookups) {
+                sum += System.identityHashCode(BlockStateIdAccess.getBlockStateById(id)) & 1;
+            }
+            return sum;
         });
     }
 }
