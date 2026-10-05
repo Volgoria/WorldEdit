@@ -19,6 +19,8 @@
 
 package com.sk89q.worldedit;
 
+import com.sk89q.worldedit.command.tool.BrushTool;
+import com.sk89q.worldedit.command.tool.brush.Brush;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.permission.ActorSelectorLimits;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -27,14 +29,25 @@ import com.sk89q.worldedit.session.Placement;
 import com.sk89q.worldedit.session.PlacementType;
 import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.world.World;
+import com.sk89q.worldedit.world.item.ItemType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Answers;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -158,6 +171,50 @@ class LocalSessionTest extends BaseWorldEditTest {
         session.setPlacement(placement);
         final BlockVector3 expected = placement.getPlacementPosition(regionSelector, player);
         assertEquals(expected, session.getPlacementPosition(player));
+    }
+
+    @Test
+    void toolsCanBeBoundFromSeveralThreads() throws Exception {
+        // Async loaders (e.g. /brush populateschem) bind tools off the main thread
+        int threads = 8;
+        int perThread = 500;
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<?>> futures = new ArrayList<>();
+            for (int t = 0; t < threads; t++) {
+                int thread = t;
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    for (int i = 0; i < perThread; i++) {
+                        ItemType item = new ItemType("test:tool_" + thread + "_" + i);
+                        session.setTool(item, new BrushTool("worldedit.brush.sphere"));
+                        session.forceBrush(item, mock(Brush.class), "worldedit.brush.sphere");
+                    }
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        for (int t = 0; t < threads; t++) {
+            for (int i = 0; i < perThread; i++) {
+                assertNotNull(session.getBrush(new ItemType("test:tool_" + t + "_" + i)));
+            }
+        }
+    }
+
+    @Test
+    void unbindingAToolRemovesIt() throws Exception {
+        ItemType item = new ItemType("test:unbind");
+        session.setTool(item, new BrushTool("worldedit.brush.sphere"));
+        assertNotNull(session.getTool(item));
+        session.setTool(item, null);
+        assertNull(session.getTool(item));
     }
 
 }

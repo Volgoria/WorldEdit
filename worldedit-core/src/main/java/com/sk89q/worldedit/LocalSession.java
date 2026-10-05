@@ -69,11 +69,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
@@ -106,7 +106,9 @@ public class LocalSession {
     private transient ClipboardHolder clipboard;
     private transient boolean superPickaxe = false;
     private transient BlockTool pickaxeMode = new SinglePickaxe();
-    private final transient Map<ItemType, Tool> tools = new HashMap<>();
+    // Tools are bound from async tasks too (e.g. brushes that load files), so the map is concurrent and
+    // compound updates (bind with wand bookkeeping, get-or-create brush) hold the map's monitor
+    private final transient Map<ItemType, Tool> tools = new ConcurrentHashMap<>();
     private transient int maxBlocksChanged = -1;
     private transient int maxTimeoutTime;
     private transient boolean useInventory;
@@ -768,14 +770,16 @@ public class LocalSession {
      */
     @Deprecated
     public BrushTool getBrushTool(ItemType item) throws InvalidToolBindException {
-        Tool tool = getTool(item);
+        synchronized (tools) {
+            Tool tool = getTool(item);
 
-        if (!(tool instanceof BrushTool)) {
-            tool = new BrushTool("worldedit.brush.sphere");
-            setTool(item, tool);
+            if (!(tool instanceof BrushTool)) {
+                tool = new BrushTool("worldedit.brush.sphere");
+                setTool(item, tool);
+            }
+
+            return (BrushTool) tool;
         }
-
-        return (BrushTool) tool;
     }
 
     /**
@@ -798,14 +802,16 @@ public class LocalSession {
      * @return the brush tool assigned to the item type
      */
     public BrushTool forceBrush(ItemType item, Brush brush, String permission) throws InvalidToolBindException {
-        BrushTool tool = getBrush(item);
-        if (tool == null) {
-            tool = new BrushTool(brush, permission);
-            setTool(item, tool);
-        } else {
-            tool.setBrush(brush, permission);
+        synchronized (tools) {
+            BrushTool tool = getBrush(item);
+            if (tool == null) {
+                tool = new BrushTool(brush, permission);
+                setTool(item, tool);
+            } else {
+                tool.setBrush(brush, permission);
+            }
+            return tool;
         }
-        return tool;
     }
 
     /**
@@ -819,29 +825,36 @@ public class LocalSession {
         if (item.hasBlockType()) {
             throw new InvalidToolBindException(item, TranslatableComponent.of("worldedit.tool.error.item-only"));
         }
-        if (tool instanceof SelectionWand) {
-            setSingleItemTool(id -> {
-                this.wandItem = id;
-                this.wandItemDefault = id.equals(config.wandItem);
-            }, this.wandItem, item);
-        } else if (tool instanceof NavigationWand) {
-            setSingleItemTool(id -> {
-                this.navWandItem = id;
-                this.navWandItemDefault = id.equals(config.navigationWand);
-            }, this.navWandItem, item);
-        } else if (tool == null) {
-            // Check if un-setting sel/nav
-            String id = item.id();
-            if (id.equals(this.wandItem)) {
-                this.wandItem = null;
-                setDirty();
-            } else if (id.equals(this.navWandItem)) {
-                this.navWandItem = null;
-                setDirty();
+        synchronized (tools) {
+            if (tool instanceof SelectionWand) {
+                setSingleItemTool(id -> {
+                    this.wandItem = id;
+                    this.wandItemDefault = id.equals(config.wandItem);
+                }, this.wandItem, item);
+            } else if (tool instanceof NavigationWand) {
+                setSingleItemTool(id -> {
+                    this.navWandItem = id;
+                    this.navWandItemDefault = id.equals(config.navigationWand);
+                }, this.navWandItem, item);
+            } else if (tool == null) {
+                // Check if un-setting sel/nav
+                String id = item.id();
+                if (id.equals(this.wandItem)) {
+                    this.wandItem = null;
+                    setDirty();
+                } else if (id.equals(this.navWandItem)) {
+                    this.navWandItem = null;
+                    setDirty();
+                }
+            }
+
+            // ConcurrentHashMap does not hold nulls: unbinding removes the entry
+            if (tool == null) {
+                this.tools.remove(item);
+            } else {
+                this.tools.put(item, tool);
             }
         }
-
-        this.tools.put(item, tool);
     }
 
     private void setSingleItemTool(Consumer<String> setter, @Nullable String itemId, ItemType newItem) {
