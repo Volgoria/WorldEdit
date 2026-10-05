@@ -26,12 +26,14 @@ import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.function.block.BlockDistributionCounter;
 import com.sk89q.worldedit.function.block.Counter;
-import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.function.mask.RegionMask;
 import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operations;
+import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.function.visitor.RecursiveVisitor;
 import com.sk89q.worldedit.function.visitor.RegionVisitor;
+import com.sk89q.worldedit.history.change.BlockChange;
+import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
 import com.sk89q.worldedit.internal.block.BlockStateIdAccess;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
@@ -440,6 +442,84 @@ class CoreHotPathBenchmark extends BaseWorldEditTest {
             assertEquals(region.getVolume(), changed);
             return (long) changed + world.blocks().size();
         });
+    }
+
+    @Test
+    void editSessionMoveRegion() throws Exception {
+        when(MOCKED_PLATFORM.getRegistries()).thenReturn(SimpleMaterialRegistries.create());
+        BlockState air = new BlockType("benchmove:air").getDefaultState();
+        BlockStateIdAccess.register(air, BlockStateIdAccess.invalidId());
+        for (BlockState state : palette) {
+            if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(state))) {
+                BlockStateIdAccess.register(state, BlockStateIdAccess.invalidId());
+            }
+        }
+        CuboidRegion region = cube(64);
+        String[] phases = {"move+flush", "undo"};
+        benchPhases("EditSession.moveRegion 64^3", phases, 3, 9, clock -> {
+            InMemoryWorld world = new InMemoryWorld(air, -64, 319);
+            for (BlockVector3 pos : region) {
+                world.blocks().put(pos, palette[(pos.x() * 31 + pos.y() * 7 + pos.z()) & (palette.length - 1)]);
+            }
+            clock.start();
+            EditSession session = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build();
+            int moved;
+            try (session) {
+                moved = session.moveRegion(region, BlockVector3.at(1, 0, 0), 40, true, null);
+            }
+            clock.end(0);
+            try (EditSession undo = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build()) {
+                session.undo(undo);
+            }
+            clock.end(1);
+            return (long) moved + world.blocks().size();
+        });
+    }
+
+    private static long usedHeapAfterGc() {
+        long used = Long.MAX_VALUE;
+        // a few rounds, as one GC does not always collect everything
+        for (int i = 0; i < 3; i++) {
+            System.gc();
+            used = Math.min(used, ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed());
+        }
+        return used;
+    }
+
+    /**
+     * Give the benchmark states internal IDs, as real platforms do.
+     */
+    private static void registerPaletteIds() {
+        for (BlockState state : palette) {
+            if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(state))) {
+                BlockStateIdAccess.register(state, BlockStateIdAccess.invalidId());
+            }
+        }
+        if (!BlockStateIdAccess.isValidInternalId(BlockStateIdAccess.getBlockStateId(stone))) {
+            BlockStateIdAccess.register(stone, BlockStateIdAccess.invalidId());
+        }
+    }
+
+    @Test
+    void historyRetainedMemory1M() throws Exception {
+        registerPaletteIds();
+        CuboidRegion region = cube(100);
+        BaseBlock previous = stone.toBaseBlock();
+        long[] retained = new long[5];
+        for (int round = 0; round < retained.length; round++) {
+            long before = usedHeapAfterGc();
+            BlockOptimizedHistory history = new BlockOptimizedHistory();
+            for (BlockVector3 pos : region) {
+                BlockState current = palette[(pos.x() * 31 + pos.y() * 7 + pos.z()) & (palette.length - 1)];
+                history.add(new BlockChange(pos, previous, current.toBaseBlock()));
+            }
+            retained[round] = usedHeapAfterGc() - before;
+            // also keeps the history reachable while measuring
+            assertEquals(region.getVolume(), history.size());
+        }
+        Arrays.sort(retained);
+        report(String.format("%-40s median retained %9.2f MB%n", "BlockOptimizedHistory 1M changes",
+            retained[retained.length / 2] / 1e6));
     }
 
     @Test
