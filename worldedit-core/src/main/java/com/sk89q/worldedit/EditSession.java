@@ -23,26 +23,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.InlineMe;
 import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.entity.Entity;
-import com.sk89q.worldedit.event.extent.EditSessionEvent;
 import com.sk89q.worldedit.extension.platform.Actor;
-import com.sk89q.worldedit.extension.platform.Capability;
-import com.sk89q.worldedit.extension.platform.Watchdog;
 import com.sk89q.worldedit.extent.ChangeSetExtent;
 import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.extent.InputExtent;
-import com.sk89q.worldedit.extent.MaskingExtent;
-import com.sk89q.worldedit.extent.NullExtent;
-import com.sk89q.worldedit.extent.TracingExtent;
-import com.sk89q.worldedit.extent.buffer.internal.BatchingExtent;
-import com.sk89q.worldedit.extent.cache.LastAccessExtentCache;
 import com.sk89q.worldedit.extent.inventory.BlockBag;
-import com.sk89q.worldedit.extent.inventory.BlockBagExtent;
-import com.sk89q.worldedit.extent.reorder.ChunkBatchingExtent;
-import com.sk89q.worldedit.extent.reorder.MultiStageReorder;
-import com.sk89q.worldedit.extent.validation.BlockChangeLimiter;
-import com.sk89q.worldedit.extent.validation.DataValidatorExtent;
-import com.sk89q.worldedit.extent.world.ChunkLoadingExtent;
-import com.sk89q.worldedit.extent.world.SideEffectExtent;
 import com.sk89q.worldedit.extent.world.SurvivalModeExtent;
 import com.sk89q.worldedit.extent.world.WatchdogTickingExtent;
 import com.sk89q.worldedit.function.mask.BlockMask;
@@ -58,6 +43,7 @@ import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
 import com.sk89q.worldedit.history.changeset.ChangeSet;
 import com.sk89q.worldedit.internal.edit.BlockAnalysis;
 import com.sk89q.worldedit.internal.edit.ExpressionOperations;
+import com.sk89q.worldedit.internal.edit.ExtentChain;
 import com.sk89q.worldedit.internal.edit.LineGenerator;
 import com.sk89q.worldedit.internal.edit.MorphologyOperations;
 import com.sk89q.worldedit.internal.edit.RegionCopyOperations;
@@ -81,7 +67,6 @@ import com.sk89q.worldedit.util.Countable;
 import com.sk89q.worldedit.util.SideEffectSet;
 import com.sk89q.worldedit.util.TreeGenerator;
 import com.sk89q.worldedit.util.eventbus.EventBus;
-import com.sk89q.worldedit.world.NullWorld;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BaseBlock;
@@ -90,7 +75,6 @@ import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.generation.TreeType;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -155,23 +139,10 @@ public class EditSession implements Extent, AutoCloseable {
     private final @Nullable Actor actor;
     private final ChangeSet changeSet = new BlockOptimizedHistory();
 
-    private @Nullable SideEffectExtent sideEffectExtent;
-    private final SurvivalModeExtent survivalExtent;
-    private @Nullable BatchingExtent batchingExtent;
-    private @Nullable ChunkBatchingExtent chunkBatchingExtent;
-    private final BlockBagExtent blockBagExtent;
-    @SuppressWarnings("deprecation")
-    private final MultiStageReorder reorderExtent;
-    private final MaskingExtent maskingExtent;
-    private final BlockChangeLimiter changeLimiter;
-    private @Nullable ChangeSetExtent changeSetExtent;
-    private final List<WatchdogTickingExtent> watchdogExtents = new ArrayList<>(2);
-
+    private final ExtentChain extents;
     private final Extent bypassReorderHistory;
     private final Extent bypassHistory;
     private final Extent bypassNone;
-
-    private final @Nullable List<TracingExtent> tracingExtents;
 
     @Deprecated
     private ReorderMode reorderMode = ReorderMode.FAST;
@@ -188,8 +159,6 @@ public class EditSession implements Extent, AutoCloseable {
      * @param actor the actor that owns the session
      * @param tracing if tracing is enabled. An actor is required if this is {@code true}
      */
-    // Suppressing AssignmentExpression: This provides clarity in the way that we use it.
-    @SuppressWarnings("AssignmentExpression")
     EditSession(EventBus eventBus, World world, int maxBlocks, @Nullable BlockBag blockBag,
                 @Nullable Actor actor,
                 boolean tracing) {
@@ -197,121 +166,18 @@ public class EditSession implements Extent, AutoCloseable {
         checkArgument(maxBlocks >= -1, "maxBlocks >= -1 required");
 
         if (tracing) {
-            this.tracingExtents = new ArrayList<>();
             checkNotNull(actor, "An actor is required while tracing");
-        } else {
-            this.tracingExtents = null;
         }
 
         this.world = world;
         this.actor = actor;
 
-        if (world != null) {
-            EditSessionEvent event = new EditSessionEvent(world, actor, maxBlocks, null);
-            Watchdog watchdog = WorldEdit.getInstance().getPlatformManager()
-                .queryCapability(Capability.GAME_HOOKS).getWatchdog();
-            Extent extent;
-
-            // These extents are ALWAYS used
-            extent = traceIfNeeded(sideEffectExtent = new SideEffectExtent(world));
-            if (watchdog != null) {
-                // Reset watchdog before world placement
-                WatchdogTickingExtent watchdogExtent = new WatchdogTickingExtent(extent, watchdog);
-                extent = traceIfNeeded(watchdogExtent);
-                watchdogExtents.add(watchdogExtent);
-            }
-            extent = traceIfNeeded(survivalExtent = new SurvivalModeExtent(extent, world));
-            extent = traceIfNeeded(new ChunkLoadingExtent(extent, world));
-            extent = traceIfNeeded(new LastAccessExtentCache(extent));
-            extent = traceIfNeeded(blockBagExtent = new BlockBagExtent(extent, blockBag));
-            extent = wrapExtent(extent, eventBus, event, Stage.BEFORE_CHANGE);
-            this.bypassReorderHistory = traceIfNeeded(new DataValidatorExtent(extent, world));
-
-            // This extent can be skipped by calling rawSetBlock()
-            extent = traceIfNeeded(batchingExtent = new BatchingExtent(extent));
-            @SuppressWarnings("deprecation")
-            MultiStageReorder reorder = new MultiStageReorder(extent, false);
-            extent = traceIfNeeded(reorderExtent = reorder);
-            extent = traceIfNeeded(chunkBatchingExtent = new ChunkBatchingExtent(extent, false));
-            extent = wrapExtent(extent, eventBus, event, Stage.BEFORE_REORDER);
-            if (watchdog != null) {
-                // reset before buffering extents, since they may buffer all changes
-                // before the world-placement reset can happen, and still cause halts
-                WatchdogTickingExtent watchdogExtent = new WatchdogTickingExtent(extent, watchdog);
-                extent = traceIfNeeded(watchdogExtent);
-                watchdogExtents.add(watchdogExtent);
-            }
-            this.bypassHistory = traceIfNeeded(new DataValidatorExtent(extent, world));
-
-            // These extents can be skipped by calling smartSetBlock()
-            extent = traceIfNeeded(changeSetExtent = new ChangeSetExtent(extent, changeSet));
-            extent = traceIfNeeded(maskingExtent = new MaskingExtent(extent, Masks.alwaysTrue()));
-            extent = traceIfNeeded(changeLimiter = new BlockChangeLimiter(extent, maxBlocks));
-            extent = wrapExtent(extent, eventBus, event, Stage.BEFORE_HISTORY);
-            this.bypassNone = traceIfNeeded(new DataValidatorExtent(extent, world));
-        } else {
-            Extent extent = new NullExtent();
-            extent = traceIfNeeded(survivalExtent = new SurvivalModeExtent(extent, NullWorld.getInstance()));
-            extent = traceIfNeeded(blockBagExtent = new BlockBagExtent(extent, blockBag));
-            @SuppressWarnings("deprecation")
-            MultiStageReorder reorder = new MultiStageReorder(extent, false);
-            extent = traceIfNeeded(reorderExtent = reorder);
-            extent = traceIfNeeded(maskingExtent = new MaskingExtent(extent, Masks.alwaysTrue()));
-            extent = traceIfNeeded(changeLimiter = new BlockChangeLimiter(extent, maxBlocks));
-            this.bypassReorderHistory = extent;
-            this.bypassHistory = extent;
-            this.bypassNone = extent;
-        }
+        this.extents = new ExtentChain(eventBus, world, actor, maxBlocks, blockBag, changeSet, tracing);
+        this.bypassReorderHistory = extents.bypassReorderHistory();
+        this.bypassHistory = extents.bypassHistory();
+        this.bypassNone = extents.bypassNone();
 
         setReorderMode(this.reorderMode);
-    }
-
-    private Extent traceIfNeeded(Extent input) {
-        Extent output = input;
-        if (tracingExtents != null) {
-            TracingExtent newExtent = new TracingExtent(input);
-            output = newExtent;
-            tracingExtents.add(newExtent);
-        }
-        return output;
-    }
-
-    private Extent wrapExtent(Extent extent, EventBus eventBus, EditSessionEvent event, Stage stage) {
-        // NB: the event does its own tracing
-        event = event.clone(stage);
-        event.setExtent(extent);
-        boolean tracing = tracingExtents != null;
-        event.setTracing(tracing);
-        eventBus.post(event);
-        if (tracing) {
-            tracingExtents.addAll(event.getTracingExtents());
-        }
-        return event.getExtent();
-    }
-
-    private boolean commitRequired() {
-        if (reorderExtent != null && reorderExtent.commitRequired()) {
-            return true;
-        }
-        if (chunkBatchingExtent != null && chunkBatchingExtent.commitRequired()) {
-            return true;
-        }
-        if (sideEffectExtent != null && sideEffectExtent.commitRequired()) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Get the current list of active tracing extents.
-     */
-    private List<TracingExtent> getActiveTracingExtents() {
-        if (tracingExtents == null) {
-            return ImmutableList.of();
-        }
-        return tracingExtents.stream()
-            .filter(TracingExtent::isActive)
-            .toList();
     }
 
     /**
@@ -334,38 +200,38 @@ public class EditSession implements Extent, AutoCloseable {
             // Fast requires a world, for now we can fallback to multi stage, but use "none" in the future.
             reorderMode = ReorderMode.MULTI_STAGE;
         }
-        if (reorderMode == ReorderMode.FAST && sideEffectExtent == null) {
+        if (reorderMode == ReorderMode.FAST && extents.sideEffectExtent() == null) {
             throw new IllegalArgumentException("An EditSession without a fast mode tried to use it for reordering!");
         }
-        if (reorderMode == ReorderMode.MULTI_STAGE && reorderExtent == null) {
+        if (reorderMode == ReorderMode.MULTI_STAGE && extents.reorderExtent() == null) {
             throw new IllegalArgumentException("An EditSession without a reorder extent tried to use it for reordering!");
         }
-        if (commitRequired()) {
+        if (extents.commitRequired()) {
             internalFlushSession();
         }
 
         this.reorderMode = reorderMode;
         exhaustive(switch (reorderMode) {
             case MULTI_STAGE -> {
-                if (sideEffectExtent != null) {
-                    sideEffectExtent.setPostEditSimulationEnabled(false);
+                if (extents.sideEffectExtent() != null) {
+                    extents.sideEffectExtent().setPostEditSimulationEnabled(false);
                 }
-                reorderExtent.setEnabled(true);
+                extents.reorderExtent().setEnabled(true);
                 yield dummyValue();
             }
             case FAST -> {
-                sideEffectExtent.setPostEditSimulationEnabled(true);
-                if (reorderExtent != null) {
-                    reorderExtent.setEnabled(false);
+                extents.sideEffectExtent().setPostEditSimulationEnabled(true);
+                if (extents.reorderExtent() != null) {
+                    extents.reorderExtent().setEnabled(false);
                 }
                 yield dummyValue();
             }
             case NONE -> {
-                if (sideEffectExtent != null) {
-                    sideEffectExtent.setPostEditSimulationEnabled(false);
+                if (extents.sideEffectExtent() != null) {
+                    extents.sideEffectExtent().setPostEditSimulationEnabled(false);
                 }
-                if (reorderExtent != null) {
-                    reorderExtent.setEnabled(false);
+                if (extents.reorderExtent() != null) {
+                    extents.reorderExtent().setEnabled(false);
                 }
                 yield dummyValue();
             }
@@ -408,7 +274,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return the limit (&gt;= 0) or -1 for no limit
      */
     public int getBlockChangeLimit() {
-        return changeLimiter.getLimit();
+        return extents.changeLimiter().getLimit();
     }
 
     /**
@@ -417,7 +283,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @param limit the limit (&gt;= 0) or -1 for no limit
      */
     public void setBlockChangeLimit(int limit) {
-        changeLimiter.setLimit(limit);
+        extents.changeLimiter().setLimit(limit);
     }
 
     /**
@@ -428,7 +294,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     @Deprecated
     public boolean isQueueEnabled() {
-        return reorderMode == ReorderMode.MULTI_STAGE && reorderExtent.isEnabled();
+        return reorderMode == ReorderMode.MULTI_STAGE && extents.reorderExtent().isEnabled();
     }
 
     /**
@@ -471,9 +337,9 @@ public class EditSession implements Extent, AutoCloseable {
     public void setMask(Mask mask) {
         this.oldMask = mask;
         if (mask == null) {
-            maskingExtent.setMask(Masks.alwaysTrue());
+            extents.maskingExtent().setMask(Masks.alwaysTrue());
         } else {
-            maskingExtent.setMask(mask);
+            extents.maskingExtent().setMask(mask);
         }
     }
 
@@ -483,7 +349,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return the survival simulation extent
      */
     public SurvivalModeExtent getSurvivalExtent() {
-        return survivalExtent;
+        return extents.survivalExtent();
     }
 
     /**
@@ -498,8 +364,8 @@ public class EditSession implements Extent, AutoCloseable {
      */
     @Deprecated
     public void setFastMode(boolean enabled) {
-        if (sideEffectExtent != null) {
-            sideEffectExtent.setSideEffectSet(enabled ? SideEffectSet.defaults() : SideEffectSet.none());
+        if (extents.sideEffectExtent() != null) {
+            extents.sideEffectExtent().setSideEffectSet(enabled ? SideEffectSet.defaults() : SideEffectSet.none());
         }
     }
 
@@ -509,8 +375,8 @@ public class EditSession implements Extent, AutoCloseable {
      * @param sideEffectSet side effects to enable
      */
     public void setSideEffectApplier(SideEffectSet sideEffectSet) {
-        if (sideEffectExtent != null) {
-            sideEffectExtent.setSideEffectSet(sideEffectSet);
+        if (extents.sideEffectExtent() != null) {
+            extents.sideEffectExtent().setSideEffectSet(sideEffectSet);
         }
     }
 
@@ -525,14 +391,14 @@ public class EditSession implements Extent, AutoCloseable {
      */
     @Deprecated
     public boolean hasFastMode() {
-        return sideEffectExtent != null && !this.sideEffectExtent.getSideEffectSet().doesApplyAny();
+        return extents.sideEffectExtent() != null && !extents.sideEffectExtent().getSideEffectSet().doesApplyAny();
     }
 
     public SideEffectSet getSideEffectApplier() {
-        if (sideEffectExtent == null) {
+        if (extents.sideEffectExtent() == null) {
             return SideEffectSet.defaults();
         }
-        return sideEffectExtent.getSideEffectSet();
+        return extents.sideEffectExtent().getSideEffectSet();
     }
 
     /**
@@ -541,7 +407,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return a block bag or null
      */
     public BlockBag getBlockBag() {
-        return blockBagExtent.getBlockBag();
+        return extents.blockBagExtent().getBlockBag();
     }
 
     /**
@@ -550,7 +416,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @param blockBag the block bag to set, or null to use none
      */
     public void setBlockBag(BlockBag blockBag) {
-        blockBagExtent.setBlockBag(blockBag);
+        extents.blockBagExtent().setBlockBag(blockBag);
     }
 
     /**
@@ -560,7 +426,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return a map of missing blocks
      */
     public Map<BlockType, Integer> popMissingBlocks() {
-        return blockBagExtent.popMissing();
+        return extents.blockBagExtent().popMissing();
     }
 
     /**
@@ -569,7 +435,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return whether chunk batching is enabled
      */
     public boolean isBatchingChunks() {
-        return chunkBatchingExtent != null && chunkBatchingExtent.isEnabled();
+        return extents.chunkBatchingExtent() != null && extents.chunkBatchingExtent().isEnabled();
     }
 
     /**
@@ -578,18 +444,18 @@ public class EditSession implements Extent, AutoCloseable {
      * @param batchingChunks {@code true} to enable, {@code false} to disable
      */
     public void setBatchingChunks(boolean batchingChunks) {
-        if (chunkBatchingExtent == null) {
+        if (extents.chunkBatchingExtent() == null) {
             if (batchingChunks) {
                 throw new UnsupportedOperationException("Chunk batching not supported by this session.");
             }
             return;
         }
-        assert batchingExtent != null : "same nullness as chunkBatchingExtent";
+        assert extents.batchingExtent() != null : "same nullness as extents.chunkBatchingExtent()";
         if (!batchingChunks && isBatchingChunks()) {
             internalFlushSession();
         }
-        chunkBatchingExtent.setEnabled(batchingChunks);
-        batchingExtent.setEnabled(!batchingChunks);
+        extents.chunkBatchingExtent().setEnabled(batchingChunks);
+        extents.batchingExtent().setEnabled(!batchingChunks);
     }
 
     /**
@@ -598,7 +464,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return {@code true} if any extents are buffering
      */
     public boolean isBufferingEnabled() {
-        return isBatchingChunks() || (sideEffectExtent != null && sideEffectExtent.isPostEditSimulationEnabled());
+        return isBatchingChunks() || (extents.sideEffectExtent() != null && extents.sideEffectExtent().isPostEditSimulationEnabled());
     }
 
     /**
@@ -609,17 +475,17 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public void disableBuffering() {
         // We optimize here to avoid repeated calls to flushSession.
-        if (commitRequired()) {
+        if (extents.commitRequired()) {
             internalFlushSession();
         }
-        if (sideEffectExtent != null) {
-            sideEffectExtent.setPostEditSimulationEnabled(false);
+        if (extents.sideEffectExtent() != null) {
+            extents.sideEffectExtent().setPostEditSimulationEnabled(false);
         }
         setReorderMode(ReorderMode.NONE);
-        if (chunkBatchingExtent != null) {
-            chunkBatchingExtent.setEnabled(false);
-            assert batchingExtent != null : "same nullness as chunkBatchingExtent";
-            batchingExtent.setEnabled(true);
+        if (extents.chunkBatchingExtent() != null) {
+            extents.chunkBatchingExtent().setEnabled(false);
+            assert extents.batchingExtent() != null : "same nullness as extents.chunkBatchingExtent()";
+            extents.batchingExtent().setEnabled(true);
         }
     }
 
@@ -629,14 +495,14 @@ public class EditSession implements Extent, AutoCloseable {
      * @return {@code true} if any watchdog extent is enabled
      */
     public boolean isTickingWatchdog() {
-        return watchdogExtents.stream().anyMatch(WatchdogTickingExtent::isEnabled);
+        return extents.watchdogExtents().stream().anyMatch(WatchdogTickingExtent::isEnabled);
     }
 
     /**
      * Set all watchdog extents to the given mode.
      */
     public void setTickingWatchdog(boolean active) {
-        for (WatchdogTickingExtent extent : watchdogExtents) {
+        for (WatchdogTickingExtent extent : extents.watchdogExtents()) {
             extent.setEnabled(active);
         }
     }
@@ -830,7 +696,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @return whether history is tracked
      */
     public boolean isTrackingHistory() {
-        return changeSetExtent != null && changeSetExtent.isEnabled();
+        return extents.changeSetExtent() != null && extents.changeSetExtent().isEnabled();
     }
 
     /**
@@ -839,8 +705,8 @@ public class EditSession implements Extent, AutoCloseable {
      * @param trackHistory whether to track history
      */
     public void setTrackingHistory(boolean trackHistory) {
-        if (changeSetExtent != null) {
-            changeSetExtent.setEnabled(trackHistory);
+        if (extents.changeSetExtent() != null) {
+            extents.changeSetExtent().setEnabled(trackHistory);
         } else if (trackHistory) {
             throw new IllegalStateException("No ChangeSetExtent is available");
         }
@@ -886,11 +752,11 @@ public class EditSession implements Extent, AutoCloseable {
     }
 
     private void dumpTracingInformation() {
-        if (this.tracingExtents == null) {
+        if (!extents.isTracing()) {
             return;
         }
         assert actor != null;
-        TracingReport.report(actor, getActiveTracingExtents());
+        TracingReport.report(actor, extents.activeTracingExtents());
     }
 
     /**
