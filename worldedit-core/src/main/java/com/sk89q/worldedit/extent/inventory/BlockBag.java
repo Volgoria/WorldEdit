@@ -21,6 +21,7 @@ package com.sk89q.worldedit.extent.inventory;
 
 import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.world.block.BlockState;
+import com.sk89q.worldedit.world.block.BlockType;
 
 /**
  * Represents a source to get blocks from and store removed ones.
@@ -30,42 +31,39 @@ public abstract class BlockBag {
     /**
      * Stores a block as if it was mined.
      *
+     * <p>Blocks that have no item form (such as air, fluids or fire) cannot be
+     * stored and are silently discarded.</p>
+     *
      * @param blockState the block state
      * @throws BlockBagException on error
      */
     public void storeDroppedBlock(BlockState blockState) throws BlockBagException {
-        BlockState dropped = blockState; // TODO BlockType.getBlockBagItem(id, data);
-        if (dropped == null) {
+        if (blockState == null) {
             return;
         }
-        if (dropped.getBlockType().getMaterial().isAir()) {
+        BlockType blockType = blockState.getBlockType();
+        if (blockType.getMaterial().isAir() || !blockType.hasItemType()) {
             return;
         }
 
-        storeBlock(dropped);
+        storeBlock(blockState);
     }
 
     /**
      * Sets a block as if it was placed by hand.
      *
+     * <p>Blocks that are replaced during placement (such as air or fluids)
+     * do not need to be fetched.</p>
+     *
      * @param blockState The block state
-     * @throws BlockBagException on error
+     * @throws BlockBagException on error, such as {@link OutOfBlocksException}
+     *     if the bag does not contain the block
      */
     public void fetchPlacedBlock(BlockState blockState) throws BlockBagException {
-        try {
-            // Blocks that can't be fetched...
-            if (blockState.getBlockType().getMaterial().isReplacedDuringPlacement()) {
-                return;
-            }
-            fetchBlock(blockState);
-        } catch (OutOfBlocksException e) {
-            BlockState placed = blockState; // TODO BlockType.getBlockBagItem(id, data);
-            if (placed.getBlockType().getMaterial().isAir()) {
-                throw e; // TODO: check
-            }
-
-            fetchBlock(placed);
+        if (blockState.getBlockType().getMaterial().isReplacedDuringPlacement()) {
+            return;
         }
+        fetchBlock(blockState);
     }
 
     /**
