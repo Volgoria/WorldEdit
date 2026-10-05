@@ -20,14 +20,12 @@
 package com.sk89q.worldedit.extension.factory.parser.mask;
 
 import com.google.common.collect.ImmutableList;
-import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.function.mask.RegionMask;
 import com.sk89q.worldedit.internal.registry.SimpleInputParser;
-import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
 import java.util.List;
 
@@ -46,10 +44,6 @@ public class RegionMaskParser extends SimpleInputParser<Mask> {
 
     @Override
     public Mask parseFromSimpleInput(String input, ParserContext context) throws InputParseException {
-        try {
-            return new RegionMask(context.requireSession().getSelection(context.requireWorld()).clone());
-        } catch (IncompleteRegionException _) {
-            throw new InputParseException(TranslatableComponent.of("worldedit.error.incomplete-region"));
-        }
+        return new RegionMask(context.requireSelection().clone());
     }
 }

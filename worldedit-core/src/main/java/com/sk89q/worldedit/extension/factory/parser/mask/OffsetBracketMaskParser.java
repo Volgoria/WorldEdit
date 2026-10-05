@@ -20,34 +20,41 @@
 package com.sk89q.worldedit.extension.factory.parser.mask;
 
 import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.extension.factory.parser.PrefixParser;
+import com.sk89q.worldedit.extension.factory.parser.BracketArgumentParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.mask.Mask;
-import com.sk89q.worldedit.function.mask.Masks;
-import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
+import com.sk89q.worldedit.function.mask.OffsetsMask;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * Parses {@code !<mask>}, the negation of a mask.
+ * Parses {@code #offset[<x>][<y>][<z>][<mask>]}, matching blocks where the
+ * block at the given offset matches the mask. This generalizes
+ * {@code >mask} ({@code #offset[0][-1][0][mask]}) and {@code <mask}.
  */
-public class NegateMaskParser extends PrefixParser<Mask> {
+public class OffsetBracketMaskParser extends BracketArgumentParser<Mask> {
 
-    public NegateMaskParser(WorldEdit worldEdit) {
-        super(worldEdit, "!");
+    public OffsetBracketMaskParser(WorldEdit worldEdit) {
+        super(worldEdit, "#offset", 4, 4);
     }
 
     @Override
-    protected Stream<String> getRemainderSuggestions(String prefix, String remainder, ParserContext context) {
-        return suggestMask(remainder, context);
+    public String getUsage() {
+        return "#offset[<x>][<y>][<z>][<mask>]";
     }
 
     @Override
-    protected Mask parseRemainder(String prefix, String remainder, ParserContext context) throws InputParseException {
-        if (remainder.isEmpty()) {
-            throw new InputParseException(TranslatableComponent.of("worldedit.error.parser.negate-nothing"));
+    protected Mask parseArguments(List<String> arguments, ParserContext context) throws InputParseException {
+        return OffsetsMask.single(parseMask(arguments.get(3), context), parseBlockVector(arguments, 0));
+    }
+
+    @Override
+    protected Stream<String> getArgumentSuggestions(int index, String partial, ParserContext context) {
+        if (index < 3) {
+            return suggestFrom(partial, OFFSET_SUGGESTIONS);
         }
-        return Masks.negate(parseMask(remainder, context));
+        return suggestMask(partial, context);
     }
 }

@@ -20,43 +20,35 @@
 package com.sk89q.worldedit.extension.factory.parser.mask;
 
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.PrefixParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.mask.ExpressionMask;
 import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.internal.expression.Expression;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.math.transform.Identity;
 import com.sk89q.worldedit.regions.shape.WorldEditExpressionEnvironment;
 import com.sk89q.worldedit.session.SessionOwner;
+import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
 import java.util.function.IntSupplier;
-import java.util.stream.Stream;
 
-public class ExpressionMaskParser extends InputParser<Mask> {
+/**
+ * Parses {@code =<expression>}, matching blocks for which the expression,
+ * evaluated with the variables {@code x}, {@code y} and {@code z}, is positive.
+ */
+public class ExpressionMaskParser extends PrefixParser<Mask> {
 
     public ExpressionMaskParser(WorldEdit worldEdit) {
-        super(worldEdit);
+        super(worldEdit, "=");
     }
 
     @Override
-    public Stream<String> getSuggestions(String input, ParserContext context) {
-        if (input.isEmpty()) {
-            return Stream.of("=");
-        }
-        return Stream.empty();
-    }
-
-    @Override
-    public Mask parseFromInput(String input, ParserContext context) throws InputParseException {
-        if (!input.startsWith("=")) {
-            return null;
-        }
-
+    protected Mask parseRemainder(String prefix, String remainder, ParserContext context) throws InputParseException {
         try {
-            Expression exp = Expression.compile(input.substring(1), "x", "y", "z");
+            Expression exp = Expression.compile(remainder, "x", "y", "z");
             WorldEditExpressionEnvironment env = new WorldEditExpressionEnvironment(
                     context.requireExtent(), new Identity());
             exp.setEnvironment(env);
@@ -66,8 +58,10 @@ public class ExpressionMaskParser extends InputParser<Mask> {
                 return new ExpressionMask(exp, timeout);
             }
             return new ExpressionMask(exp);
-        } catch (ExpressionException _) {
-            throw new InputParseException(TranslatableComponent.of("worldedit.error.parser.invalid-expression"));
+        } catch (ExpressionException e) {
+            throw new InputParseException(TranslatableComponent.of(
+                "worldedit.error.parser.invalid-expression", TextComponent.of(e.getMessage() != null ? e.getMessage() : remainder)
+            ), e);
         }
     }
 }

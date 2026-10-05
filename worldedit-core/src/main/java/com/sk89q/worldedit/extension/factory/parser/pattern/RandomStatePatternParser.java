@@ -20,48 +20,46 @@
 package com.sk89q.worldedit.extension.factory.parser.pattern;
 
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.PrefixParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.function.pattern.RandomStatePattern;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.FuzzyBlockState;
 
 import java.util.stream.Stream;
 
-public class RandomStatePatternParser extends InputParser<Pattern> {
+/**
+ * Parses {@code *<block>}, a block with a random value for every state that
+ * is not given.
+ */
+public class RandomStatePatternParser extends PrefixParser<Pattern> {
+
     public RandomStatePatternParser(WorldEdit worldEdit) {
-        super(worldEdit);
+        super(worldEdit, "*");
     }
 
     @Override
-    public Stream<String> getSuggestions(String input, ParserContext context) {
-        if (input.isEmpty()) {
-            return Stream.of("*");
-        }
-        if (!input.startsWith("*")) {
-            return Stream.empty();
-        }
-
-        return worldEdit.getBlockFactory().getSuggestions(input.substring(1), context).stream().map(s -> "*" + s);
+    protected Stream<String> getRemainderSuggestions(String prefix, String remainder, ParserContext context) {
+        return worldEdit.getBlockFactory().getSuggestions(remainder, context).stream();
     }
 
     @Override
-    public Pattern parseFromInput(String input, ParserContext context) throws InputParseException {
-        if (!input.startsWith("*")) {
-            return null;
-        }
-
+    protected Pattern parseRemainder(String prefix, String remainder, ParserContext context) throws InputParseException {
         boolean wasFuzzy = context.isPreferringWildcard();
         context.setPreferringWildcard(true);
-        BaseBlock block = worldEdit.getBlockFactory().parseFromInput(input.substring(1), context);
-        context.setPreferringWildcard(wasFuzzy);
+        BaseBlock block;
+        try {
+            block = worldEdit.getBlockFactory().parseFromInput(remainder, context);
+        } finally {
+            context.setPreferringWildcard(wasFuzzy);
+        }
         if (block.getStates().size() == block.getBlockType().getPropertyMap().size()) {
             // they requested random with *, but didn't leave any states empty - simplify
             return block;
-        } else if (block.toImmutableState() instanceof FuzzyBlockState) {
-            return new RandomStatePattern((FuzzyBlockState) block.toImmutableState());
+        } else if (block.toImmutableState() instanceof FuzzyBlockState fuzzy) {
+            return new RandomStatePattern(fuzzy);
         } else {
             return null; // only should happen if parseLogic changes
         }

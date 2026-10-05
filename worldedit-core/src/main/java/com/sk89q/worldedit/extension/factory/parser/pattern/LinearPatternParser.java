@@ -17,47 +17,46 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.sk89q.worldedit.extension.factory.parser.mask;
+package com.sk89q.worldedit.extension.factory.parser.pattern;
 
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.factory.parser.BracketArgumentParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
-import com.sk89q.worldedit.function.mask.BoundedHeightMask;
-import com.sk89q.worldedit.function.mask.Mask;
+import com.sk89q.worldedit.function.pattern.Pattern;
+import com.sk89q.worldedit.function.pattern.StripePattern;
+import com.sk89q.worldedit.math.BlockVector3;
 
 import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * Parses {@code #y[<min>][<max>]}, matching blocks whose Y coordinate is in
- * the inclusive range. Either bound may be {@code *} for no limit; the
- * bounds may be given in any order.
+ * Parses {@code #linear[<pattern>,<pattern>,...]}, cycling through the
+ * patterns block by block: the pattern used at a position is chosen by
+ * {@code x + y + z} modulo the number of patterns, so that neighbouring
+ * blocks always differ and the result does not depend on the order in
+ * which blocks are placed.
  */
-public class YRangeMaskParser extends BracketArgumentParser<Mask> {
+public class LinearPatternParser extends BracketArgumentParser<Pattern> {
 
-    private static final String UNBOUNDED = "*";
+    private static final BlockVector3 DIRECTION = BlockVector3.ONE;
 
-    public YRangeMaskParser(WorldEdit worldEdit) {
-        super(worldEdit, "#y", 2, 2);
+    public LinearPatternParser(WorldEdit worldEdit) {
+        super(worldEdit, "#linear", 1, 1);
     }
 
     @Override
     public String getUsage() {
-        return "#y[<min|*>][<max|*>]";
+        return "#linear[<pattern>,<pattern>,...]";
     }
 
     @Override
-    protected Mask parseArguments(List<String> arguments, ParserContext context) throws InputParseException {
-        String first = arguments.get(0).trim();
-        String second = arguments.get(1).trim();
-        int min = first.equals(UNBOUNDED) ? Integer.MIN_VALUE : parseInt(first);
-        int max = second.equals(UNBOUNDED) ? Integer.MAX_VALUE : parseInt(second);
-        return new BoundedHeightMask(Math.min(min, max), Math.max(min, max));
+    protected Pattern parseArguments(List<String> arguments, ParserContext context) throws InputParseException {
+        return new StripePattern(parsePatternList(arguments.get(0), context), DIRECTION, 1);
     }
 
     @Override
     protected Stream<String> getArgumentSuggestions(int index, String partial, ParserContext context) {
-        return suggestFrom(partial, UNBOUNDED, "-64", "0", "62", "64", "128", "256", "320");
+        return suggestPatternList(partial, context);
     }
 }

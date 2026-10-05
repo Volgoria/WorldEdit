@@ -20,16 +20,21 @@
 package com.sk89q.worldedit.extension.factory;
 
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.AliasParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.BlockCategoryPatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.CheckerPatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.ClipboardPatternParser;
+import com.sk89q.worldedit.extension.factory.parser.pattern.ConditionalPatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.GradientPatternParser;
+import com.sk89q.worldedit.extension.factory.parser.pattern.LinearPatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.NoisePatternParser;
+import com.sk89q.worldedit.extension.factory.parser.pattern.OffsetPatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.RandomPatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.RandomStatePatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.SingleBlockPatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.StripePatternParser;
 import com.sk89q.worldedit.extension.factory.parser.pattern.TypeOrStateApplyingPatternParser;
+import com.sk89q.worldedit.function.pattern.ExistingBlockPattern;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.internal.registry.AbstractFactory;
 
@@ -62,6 +67,10 @@ public final class PatternFactory extends AbstractFactory<Pattern> {
         register(new StripePatternParser(worldEdit));
         register(new CheckerPatternParser(worldEdit));
         register(new NoisePatternParser(worldEdit));
+        register(new LinearPatternParser(worldEdit));
+        register(new OffsetPatternParser(worldEdit));
+        register(new ConditionalPatternParser(worldEdit));
+        register(new AliasParser<>(worldEdit, c -> new ExistingBlockPattern(c.requireExtent()), "#existing"));
     }
 
 }

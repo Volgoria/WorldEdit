@@ -159,6 +159,7 @@ public class OffsetsMask extends AbstractMask {
     private final int minMatches;
     private final int maxMatches;
     private final ImmutableSet<BlockVector3> offsets;
+    private final BlockVector3[] offsetArray;
 
     private OffsetsMask(Mask mask, boolean excludeSelf, int minMatches, int maxMatches, ImmutableSet<BlockVector3> offsets) {
         checkNotNull(mask);
@@ -174,6 +175,7 @@ public class OffsetsMask extends AbstractMask {
         this.minMatches = minMatches;
         this.maxMatches = maxMatches;
         this.offsets = offsets;
+        this.offsetArray = offsets.toArray(new BlockVector3[0]);
     }
 
     /**
@@ -229,7 +231,8 @@ public class OffsetsMask extends AbstractMask {
 
         int matches = 0;
 
-        for (BlockVector3 offset : offsets) {
+        // iterate over an array: this is a hot path, and set iterators allocate
+        for (BlockVector3 offset : offsetArray) {
             if (mask.test(vector.add(offset))) {
                 matches++;
                 if (matches > maxMatches) {
