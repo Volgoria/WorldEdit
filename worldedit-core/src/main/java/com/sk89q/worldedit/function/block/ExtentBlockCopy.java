@@ -44,6 +44,7 @@ public class ExtentBlockCopy implements RegionFunction {
     private final BlockVector3 from;
     private final BlockVector3 to;
     private final Transform transform;
+    private final boolean identityTransform;
 
     /**
      * Make a new copy.
@@ -65,12 +66,19 @@ public class ExtentBlockCopy implements RegionFunction {
         this.destination = destination;
         this.to = to;
         this.transform = transform;
+        this.identityTransform = transform.isIdentity();
     }
 
     @Override
     public boolean apply(BlockVector3 position) throws WorldEditException {
         BaseBlock block = source.getFullBlock(position);
         BlockVector3 orig = position.subtract(from);
+
+        if (identityTransform) {
+            // Fast path: nothing to rotate, neither the position nor the NBT data
+            return destination.setBlock(orig.add(to), block);
+        }
+
         BlockVector3 transformed = transform.apply(orig.toVector3()).toBlockPoint();
 
         // Apply transformations to NBT data if necessary
