@@ -20,11 +20,15 @@
 package com.sk89q.worldedit.extent.clipboard.io;
 
 import com.google.common.collect.ImmutableSet;
+import com.sk89q.worldedit.extent.clipboard.io.export.JsonClipboardWriter;
+import com.sk89q.worldedit.extent.clipboard.io.export.WavefrontObjWriter;
 import com.sk89q.worldedit.extent.clipboard.io.sponge.SpongeSchematicV1Reader;
 import com.sk89q.worldedit.extent.clipboard.io.sponge.SpongeSchematicV2Reader;
 import com.sk89q.worldedit.extent.clipboard.io.sponge.SpongeSchematicV2Writer;
 import com.sk89q.worldedit.extent.clipboard.io.sponge.SpongeSchematicV3Reader;
 import com.sk89q.worldedit.extent.clipboard.io.sponge.SpongeSchematicV3Writer;
+import com.sk89q.worldedit.extent.clipboard.io.structure.MinecraftStructureReader;
+import com.sk89q.worldedit.extent.clipboard.io.structure.MinecraftStructureWriter;
 import org.enginehub.linbus.stream.LinBinaryIO;
 import org.enginehub.linbus.stream.LinReadOptions;
 import org.enginehub.linbus.tree.LinCompoundTag;
@@ -70,6 +74,11 @@ public enum BuiltInClipboardFormat implements ClipboardFormat {
         }
 
         @Override
+        public boolean supportsWriting() {
+            return false;
+        }
+
+        @Override
         public boolean isFormat(InputStream inputStream) {
             LinRootEntry rootEntry;
             try {
@@ -101,6 +110,11 @@ public enum BuiltInClipboardFormat implements ClipboardFormat {
         @Override
         public ClipboardWriter getWriter(OutputStream outputStream) throws IOException {
             throw new IOException("This format does not support saving");
+        }
+
+        @Override
+        public boolean supportsWriting() {
+            return false;
         }
 
         @Override
@@ -171,7 +185,96 @@ public enum BuiltInClipboardFormat implements ClipboardFormat {
             return versionTag.valueAsInt() == 3;
         }
     },
+    /**
+     * The vanilla Minecraft structure format, as used by structure blocks and data packs.
+     */
+    MINECRAFT_STRUCTURE("structure", "nbt", "vanilla") {
+
+        @Override
+        public String getPrimaryFileExtension() {
+            return "nbt";
+        }
+
+        @Override
+        public ClipboardReader getReader(InputStream inputStream) throws IOException {
+            return new MinecraftStructureReader(LinBinaryIO.read(
+                new DataInputStream(new GZIPInputStream(inputStream)), LEGACY_OPTIONS
+            ));
+        }
+
+        @Override
+        public ClipboardWriter getWriter(OutputStream outputStream) throws IOException {
+            return new MinecraftStructureWriter(new DataOutputStream(new GZIPOutputStream(outputStream)));
+        }
+
+        @Override
+        public boolean isFormat(InputStream inputStream) {
+            LinCompoundTag root;
+            try {
+                DataInputStream stream = new DataInputStream(new GZIPInputStream(inputStream));
+                root = LinBinaryIO.readUsing(stream, LEGACY_OPTIONS, LinRootEntry::readFrom).value();
+            } catch (Exception _) {
+                return false;
+            }
+            return MinecraftStructureReader.isStructure(root);
+        }
+    },
+    /**
+     * Export-only Wavefront OBJ mesh of the exposed block faces. Saving to a file also writes
+     * a {@code .mtl} material library next to it.
+     */
+    WAVEFRONT_OBJ("obj", "wavefront") {
+
+        @Override
+        public String getPrimaryFileExtension() {
+            return "obj";
+        }
+
+        @Override
+        public ClipboardReader getReader(InputStream inputStream) throws IOException {
+            throw exportOnly(this);
+        }
+
+        @Override
+        public ClipboardWriter getWriter(OutputStream outputStream) {
+            return new WavefrontObjWriter(outputStream);
+        }
+
+        @Override
+        public boolean supportsReading() {
+            return false;
+        }
+    },
+    /**
+     * Export-only JSON document with size, palette and blocks, for web tools.
+     */
+    JSON("json") {
+
+        @Override
+        public String getPrimaryFileExtension() {
+            return "json";
+        }
+
+        @Override
+        public ClipboardReader getReader(InputStream inputStream) throws IOException {
+            throw exportOnly(this);
+        }
+
+        @Override
+        public ClipboardWriter getWriter(OutputStream outputStream) {
+            return new JsonClipboardWriter(outputStream);
+        }
+
+        @Override
+        public boolean supportsReading() {
+            return false;
+        }
+    },
     ;
+
+    private static IOException exportOnly(ClipboardFormat format) {
+        return new IOException("The " + format.getName() + " format is export-only and cannot be loaded");
+    }
 
     private static boolean detectOldSpongeSchematic(InputStream inputStream, int version) {
         LinRootEntry rootEntry;

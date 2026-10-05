@@ -65,6 +65,28 @@ public interface ClipboardFormat {
     ClipboardWriter getWriter(OutputStream outputStream) throws IOException;
 
     /**
+     * Return whether clipboards can be loaded from this format.
+     *
+     * <p>Export-only formats return {@code false} and throw from {@link #getReader(InputStream)}.</p>
+     *
+     * @return true if this format has a reader
+     */
+    default boolean supportsReading() {
+        return true;
+    }
+
+    /**
+     * Return whether clipboards can be saved in this format.
+     *
+     * <p>Load-only (legacy) formats return {@code false} and throw from {@link #getWriter(OutputStream)}.</p>
+     *
+     * @return true if this format has a writer
+     */
+    default boolean supportsWriting() {
+        return true;
+    }
+
+    /**
      * Return whether the given file is of this format.
      *
      * @param file the file
