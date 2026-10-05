@@ -23,6 +23,7 @@ import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.entity.Entity;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.world.biome.BiomeType;
@@ -50,6 +51,15 @@ public class BlockArrayClipboard implements Clipboard {
     }
 
     private final Region region;
+    /**
+     * Cached bounds of {@link #region}, which is a private copy and never changes.
+     */
+    private final BlockVector3 minimumPoint;
+    private final BlockVector3 maximumPoint;
+    /**
+     * Whether {@link #region} is a cuboid, so containment is a bounds check.
+     */
+    private final boolean cuboid;
     private BlockVector3 origin;
     /**
      * Stride for y-index, for faster access to blocks/biomes array.
@@ -75,6 +85,9 @@ public class BlockArrayClipboard implements Clipboard {
     public BlockArrayClipboard(Region region) {
         checkNotNull(region);
         this.region = region.clone();
+        this.minimumPoint = this.region.getMinimumPoint();
+        this.maximumPoint = this.region.getMaximumPoint();
+        this.cuboid = this.region.getClass() == CuboidRegion.class;
         this.origin = region.getMinimumPoint();
 
         BlockVector3 dimensions = getDimensions(region);
@@ -83,8 +96,21 @@ public class BlockArrayClipboard implements Clipboard {
         zStride = yStride * dimensions.y();
     }
 
-    private int indexBlockVecBasedArray(BlockVector3 v) {
-        return v.x() + (v.y() * yStride) + (v.z() * zStride);
+    /**
+     * Get the array index of a position, relative to the minimum point.
+     */
+    private int index(BlockVector3 position) {
+        return (position.x() - minimumPoint.x())
+            + ((position.y() - minimumPoint.y()) * yStride)
+            + ((position.z() - minimumPoint.z()) * zStride);
+    }
+
+    private boolean inBounds(BlockVector3 position) {
+        return position.containedWithin(minimumPoint, maximumPoint);
+    }
+
+    private boolean regionContains(BlockVector3 position) {
+        return cuboid ? inBounds(position) : region.contains(position);
     }
 
     @Override
@@ -109,12 +135,12 @@ public class BlockArrayClipboard implements Clipboard {
 
     @Override
     public BlockVector3 getMinimumPoint() {
-        return region.getMinimumPoint();
+        return minimumPoint;
     }
 
     @Override
     public BlockVector3 getMaximumPoint() {
-        return region.getMaximumPoint();
+        return maximumPoint;
     }
 
     @Override
@@ -143,9 +169,8 @@ public class BlockArrayClipboard implements Clipboard {
 
     @Override
     public BlockState getBlock(BlockVector3 position) {
-        if (region.contains(position)) {
-            BlockVector3 v = position.subtract(region.getMinimumPoint());
-            BaseBlock block = blocks[indexBlockVecBasedArray(v)];
+        if (regionContains(position)) {
+            BaseBlock block = blocks[index(position)];
             if (block != null) {
                 return block.toImmutableState();
             }
@@ -156,9 +181,8 @@ public class BlockArrayClipboard implements Clipboard {
 
     @Override
     public BaseBlock getFullBlock(BlockVector3 position) {
-        if (region.contains(position)) {
-            BlockVector3 v = position.subtract(region.getMinimumPoint());
-            BaseBlock block = blocks[indexBlockVecBasedArray(v)];
+        if (regionContains(position)) {
+            BaseBlock block = blocks[index(position)];
             if (block != null) {
                 return block;
             }
@@ -169,9 +193,8 @@ public class BlockArrayClipboard implements Clipboard {
 
     @Override
     public <B extends BlockStateHolder<B>> boolean setBlock(BlockVector3 position, B block) {
-        if (region.contains(position)) {
-            BlockVector3 v = position.subtract(region.getMinimumPoint());
-            blocks[indexBlockVecBasedArray(v)] = block.toBaseBlock();
+        if (regionContains(position)) {
+            blocks[index(position)] = block.toBaseBlock();
             return true;
         } else {
             return false;
@@ -185,10 +208,8 @@ public class BlockArrayClipboard implements Clipboard {
 
     @Override
     public BiomeType getBiome(BlockVector3 position) {
-        if (biomes != null
-                && position.containedWithin(getMinimumPoint(), getMaximumPoint())) {
-            BlockVector3 v = position.subtract(region.getMinimumPoint());
-            BiomeType biomeType = biomes[indexBlockVecBasedArray(v)];
+        if (biomes != null && inBounds(position)) {
+            BiomeType biomeType = biomes[index(position)];
             if (biomeType != null) {
                 return biomeType;
             }
@@ -199,13 +220,11 @@ public class BlockArrayClipboard implements Clipboard {
 
     @Override
     public boolean setBiome(BlockVector3 position, BiomeType biome) {
-        if (position.containedWithin(getMinimumPoint(), getMaximumPoint())) {
-            BlockVector3 v = position.subtract(region.getMinimumPoint());
+        if (inBounds(position)) {
             if (biomes == null) {
-                BlockVector3 dimensions = getDimensions();
-                biomes = new BiomeType[dimensions.x() * dimensions.y() * dimensions.z()];
+                biomes = new BiomeType[blocks.length];
             }
-            biomes[indexBlockVecBasedArray(v)] = biome;
+            biomes[index(position)] = biome;
             return true;
         }
         return false;
