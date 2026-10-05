@@ -83,6 +83,8 @@ import com.sk89q.worldedit.function.visitor.RegionVisitor;
 import com.sk89q.worldedit.history.UndoContext;
 import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
 import com.sk89q.worldedit.history.changeset.ChangeSet;
+import com.sk89q.worldedit.internal.edit.LineGenerator;
+import com.sk89q.worldedit.internal.edit.ShapeGenerator;
 import com.sk89q.worldedit.internal.expression.Expression;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
 import com.sk89q.worldedit.internal.expression.ExpressionTimeoutException;
@@ -93,9 +95,6 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.MathUtils;
 import com.sk89q.worldedit.math.Vector2;
 import com.sk89q.worldedit.math.Vector3;
-import com.sk89q.worldedit.math.interpolation.Interpolation;
-import com.sk89q.worldedit.math.interpolation.KochanekBartelsInterpolation;
-import com.sk89q.worldedit.math.interpolation.Node;
 import com.sk89q.worldedit.math.noise.RandomNoise;
 import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.math.transform.ScaleAndTranslateTransform;
@@ -136,7 +135,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -854,23 +852,6 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public boolean setBlock(BlockVector3 position, Pattern pattern) throws MaxChangedBlocksException {
         return setBlock(position, pattern.applyBlock(position));
-    }
-
-    /**
-     * Set blocks that are in a set of positions and return the number of times
-     * that the block set calls returned true.
-     *
-     * @param vset a set of positions
-     * @param pattern the pattern
-     * @return the number of changed blocks
-     * @throws MaxChangedBlocksException thrown if too many blocks are changed
-     */
-    private int setBlocks(Set<BlockVector3> vset, Pattern pattern) throws MaxChangedBlocksException {
-        int affected = 0;
-        for (BlockVector3 v : vset) {
-            affected += setBlock(v, pattern) ? 1 : 0;
-        }
-        return affected;
     }
 
     @Override
@@ -1758,71 +1739,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makeCylinder(BlockVector3 pos, Pattern block, double radiusX, double radiusZ, int height, boolean filled) throws MaxChangedBlocksException {
-        int affected = 0;
-
-        radiusX += 0.5;
-        radiusZ += 0.5;
-
-        if (height == 0) {
-            return 0;
-        } else if (height < 0) {
-            height = -height;
-            pos = pos.subtract(0, height, 0);
-        }
-
-        if (pos.y() < world.getMinY()) {
-            pos = pos.withY(world.getMinY());
-        } else if (pos.y() + height - 1 > world.getMaxY()) {
-            height = world.getMaxY() - pos.y() + 1;
-        }
-
-        final double invRadiusX = 1 / radiusX;
-        final double invRadiusZ = 1 / radiusZ;
-
-        final int ceilRadiusX = (int) Math.ceil(radiusX);
-        final int ceilRadiusZ = (int) Math.ceil(radiusZ);
-
-        double nextXn = 0;
-        forX: for (int x = 0; x <= ceilRadiusX; ++x) {
-            final double xn = nextXn;
-            nextXn = (x + 1) * invRadiusX;
-            double nextZn = 0;
-            forZ: for (int z = 0; z <= ceilRadiusZ; ++z) {
-                final double zn = nextZn;
-                nextZn = (z + 1) * invRadiusZ;
-
-                double distanceSq = lengthSq(xn, zn);
-                if (distanceSq > 1) {
-                    if (z == 0) {
-                        break forX;
-                    }
-                    break forZ;
-                }
-
-                if (!filled) {
-                    if (lengthSq(nextXn, zn) <= 1 && lengthSq(xn, nextZn) <= 1) {
-                        continue;
-                    }
-                }
-
-                for (int y = 0; y < height; ++y) {
-                    if (setBlock(pos.add(x, y, z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(-x, y, z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(x, y, -z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(-x, y, -z), block)) {
-                        ++affected;
-                    }
-                }
-            }
-        }
-
-        return affected;
+        return ShapeGenerator.makeCylinder(this, world, pos, block, radiusX, radiusZ, height, filled);
     }
 
     /**
@@ -1840,65 +1757,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int makeCone(BlockVector3 pos, Pattern block, double radiusX, double radiusZ, int height, boolean filled,
                         double thickness) throws MaxChangedBlocksException {
-        int affected = 0;
-
-        final int ceilRadiusX = (int) Math.ceil(radiusX);
-        final int ceilRadiusZ = (int) Math.ceil(radiusZ);
-        final double radiusXPow = Math.pow(radiusX, 2);
-        final double radiusZPow = Math.pow(radiusZ, 2);
-        final double heightPow = Math.pow(height, 2);
-        final int layers = Math.abs(height);
-
-        for (int y = 0; y < layers; ++y) {
-            double ySquaredMinusHeightOverHeightSquared = Math.pow(y - layers, 2) / heightPow;
-
-            forX:
-            for (int x = 0; x <= ceilRadiusX; ++x) {
-                double xSquaredOverRadiusX = Math.pow(x, 2) / radiusXPow;
-
-                for (int z = 0; z <= ceilRadiusZ; ++z) {
-                    double zSquaredOverRadiusZ = Math.pow(z, 2) / radiusZPow;
-                    double distanceFromOriginMinusHeightSquared = xSquaredOverRadiusX + zSquaredOverRadiusZ
-                        - ySquaredMinusHeightOverHeightSquared;
-
-                    if (distanceFromOriginMinusHeightSquared > 1) {
-                        if (z == 0) {
-                            break forX;
-                        }
-                        break;
-                    }
-
-                    if (!filled) {
-                        double xNext = Math.pow(x + thickness, 2) / radiusXPow
-                            + zSquaredOverRadiusZ - ySquaredMinusHeightOverHeightSquared;
-                        double yNext = xSquaredOverRadiusX + zSquaredOverRadiusZ
-                            - Math.pow(y + thickness - layers, 2) / heightPow;
-                        double zNext = xSquaredOverRadiusX + Math.pow(z + thickness, 2)
-                            / radiusZPow - ySquaredMinusHeightOverHeightSquared;
-                        if (xNext <= 0 && zNext <= 0 && (yNext <= 0 && y + thickness != layers)) {
-                            continue;
-                        }
-                    }
-
-                    if (distanceFromOriginMinusHeightSquared <= 0) {
-                        int yOffset = height < 0 ? -y : y;
-                        if (setBlock(pos.add(x, yOffset, z), block)) {
-                            ++affected;
-                        }
-                        if (setBlock(pos.add(-x, yOffset, z), block)) {
-                            ++affected;
-                        }
-                        if (setBlock(pos.add(x, yOffset, -z), block)) {
-                            ++affected;
-                        }
-                        if (setBlock(pos.add(-x, yOffset, -z), block)) {
-                            ++affected;
-                        }
-                    }
-                }
-            }
-        }
-        return affected;
+        return ShapeGenerator.makeCone(this, pos, block, radiusX, radiusZ, height, filled, thickness);
     }
 
     /**
@@ -1928,79 +1787,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makeSphere(BlockVector3 pos, Pattern block, double radiusX, double radiusY, double radiusZ, boolean filled) throws MaxChangedBlocksException {
-        int affected = 0;
-
-        radiusX += 0.5;
-        radiusY += 0.5;
-        radiusZ += 0.5;
-
-        final double invRadiusX = 1 / radiusX;
-        final double invRadiusY = 1 / radiusY;
-        final double invRadiusZ = 1 / radiusZ;
-
-        final int ceilRadiusX = (int) Math.ceil(radiusX);
-        final int ceilRadiusY = (int) Math.ceil(radiusY);
-        final int ceilRadiusZ = (int) Math.ceil(radiusZ);
-
-        double nextXn = 0;
-        forX: for (int x = 0; x <= ceilRadiusX; ++x) {
-            final double xn = nextXn;
-            nextXn = (x + 1) * invRadiusX;
-            double nextYn = 0;
-            forY: for (int y = 0; y <= ceilRadiusY; ++y) {
-                final double yn = nextYn;
-                nextYn = (y + 1) * invRadiusY;
-                double nextZn = 0;
-                forZ: for (int z = 0; z <= ceilRadiusZ; ++z) {
-                    final double zn = nextZn;
-                    nextZn = (z + 1) * invRadiusZ;
-
-                    double distanceSq = lengthSq(xn, yn, zn);
-                    if (distanceSq > 1) {
-                        if (z == 0) {
-                            if (y == 0) {
-                                break forX;
-                            }
-                            break forY;
-                        }
-                        break forZ;
-                    }
-
-                    if (!filled) {
-                        if (lengthSq(nextXn, yn, zn) <= 1 && lengthSq(xn, nextYn, zn) <= 1 && lengthSq(xn, yn, nextZn) <= 1) {
-                            continue;
-                        }
-                    }
-
-                    if (setBlock(pos.add(x, y, z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(-x, y, z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(x, -y, z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(x, y, -z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(-x, -y, z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(x, -y, -z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(-x, y, -z), block)) {
-                        ++affected;
-                    }
-                    if (setBlock(pos.add(-x, -y, -z), block)) {
-                        ++affected;
-                    }
-                }
-            }
-        }
-
-        return affected;
+        return ShapeGenerator.makeSphere(this, pos, block, radiusX, radiusY, radiusZ, filled);
     }
 
     /**
@@ -2014,35 +1801,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makePyramid(BlockVector3 position, Pattern block, int size, boolean filled) throws MaxChangedBlocksException {
-        int affected = 0;
-
-        int height = size;
-
-        for (int y = 0; y <= height; ++y) {
-            size--;
-            for (int x = 0; x <= size; ++x) {
-                for (int z = 0; z <= size; ++z) {
-
-                    if ((filled && z <= size && x <= size) || z == size || x == size) {
-
-                        if (setBlock(position.add(x, y, z), block)) {
-                            ++affected;
-                        }
-                        if (setBlock(position.add(-x, y, z), block)) {
-                            ++affected;
-                        }
-                        if (setBlock(position.add(x, y, -z), block)) {
-                            ++affected;
-                        }
-                        if (setBlock(position.add(-x, y, -z), block)) {
-                            ++affected;
-                        }
-                    }
-                }
-            }
-        }
-
-        return affected;
+        return ShapeGenerator.makePyramid(this, position, block, size, filled);
     }
 
     /**
@@ -2794,64 +2553,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int drawLine(Pattern pattern, List<BlockVector3> vectors, double radius, boolean filled)
             throws MaxChangedBlocksException {
-
-        Set<BlockVector3> vset = new HashSet<>();
-
-        for (int i = 0; !vectors.isEmpty() && i < vectors.size() - 1; i++) {
-            BlockVector3 pos1 = vectors.get(i);
-            BlockVector3 pos2 = vectors.get(i + 1);
-
-            int x1 = pos1.x();
-            int y1 = pos1.y();
-            int z1 = pos1.z();
-            int x2 = pos2.x();
-            int y2 = pos2.y();
-            int z2 = pos2.z();
-            int tipx = x1;
-            int tipy = y1;
-            int tipz = z1;
-            int dx = Math.abs(x2 - x1);
-            int dy = Math.abs(y2 - y1);
-            int dz = Math.abs(z2 - z1);
-
-            if (dx + dy + dz == 0) {
-                vset.add(BlockVector3.at(tipx, tipy, tipz));
-                continue;
-            }
-
-            int dMax = Math.max(Math.max(dx, dy), dz);
-            if (dMax == dx) {
-                for (int domstep = 0; domstep <= dx; domstep++) {
-                    tipx = x1 + domstep * (x2 - x1 > 0 ? 1 : -1);
-                    tipy = (int) Math.round(y1 + domstep * ((double) dy) / ((double) dx) * (y2 - y1 > 0 ? 1 : -1));
-                    tipz = (int) Math.round(z1 + domstep * ((double) dz) / ((double) dx) * (z2 - z1 > 0 ? 1 : -1));
-
-                    vset.add(BlockVector3.at(tipx, tipy, tipz));
-                }
-            } else if (dMax == dy) {
-                for (int domstep = 0; domstep <= dy; domstep++) {
-                    tipy = y1 + domstep * (y2 - y1 > 0 ? 1 : -1);
-                    tipx = (int) Math.round(x1 + domstep * ((double) dx) / ((double) dy) * (x2 - x1 > 0 ? 1 : -1));
-                    tipz = (int) Math.round(z1 + domstep * ((double) dz) / ((double) dy) * (z2 - z1 > 0 ? 1 : -1));
-
-                    vset.add(BlockVector3.at(tipx, tipy, tipz));
-                }
-            } else /* if (dMax == dz) */ {
-                for (int domstep = 0; domstep <= dz; domstep++) {
-                    tipz = z1 + domstep * (z2 - z1 > 0 ? 1 : -1);
-                    tipy = (int) Math.round(y1 + domstep * ((double) dy) / ((double) dz) * (y2 - y1 > 0 ? 1 : -1));
-                    tipx = (int) Math.round(x1 + domstep * ((double) dx) / ((double) dz) * (x2 - x1 > 0 ? 1 : -1));
-
-                    vset.add(BlockVector3.at(tipx, tipy, tipz));
-                }
-            }
-        }
-
-        vset = getBallooned(vset, radius);
-        if (!filled) {
-            vset = getHollowed(vset);
-        }
-        return setBlocks(vset, pattern);
+        return LineGenerator.drawLine(this, pattern, vectors, radius, filled);
     }
 
     /**
@@ -2872,74 +2574,7 @@ public class EditSession implements Extent, AutoCloseable {
     public int drawSpline(Pattern pattern, List<BlockVector3> nodevectors, double tension, double bias,
                           double continuity, double quality, double radius, boolean filled)
             throws MaxChangedBlocksException {
-
-        Set<BlockVector3> vset = new HashSet<>();
-        List<Node> nodes = new ArrayList<>(nodevectors.size());
-
-        Interpolation interpol = new KochanekBartelsInterpolation();
-
-        for (BlockVector3 nodevector : nodevectors) {
-            Node n = new Node(nodevector.toVector3().add(Vector3.at(0.5D, 0.5D, 0.5D)));
-            n.setTension(tension);
-            n.setBias(bias);
-            n.setContinuity(continuity);
-            nodes.add(n);
-        }
-
-        interpol.setNodes(nodes);
-        double splinelength = interpol.arcLength(0, 1);
-        for (double loop = 0; loop <= 1; loop += 1D / splinelength / quality) {
-            Vector3 tipv = interpol.getPosition(loop);
-
-            vset.add(tipv.toBlockPoint());
-        }
-
-        vset = getBallooned(vset, radius);
-        if (!filled) {
-            vset = getHollowed(vset);
-        }
-        return setBlocks(vset, pattern);
-    }
-
-    private static Set<BlockVector3> getBallooned(Set<BlockVector3> vset, double radius) {
-        Set<BlockVector3> returnset = new HashSet<>();
-        int ceilrad = (int) Math.ceil(radius);
-        double radiusSquare = Math.pow(radius, 2);
-
-        for (BlockVector3 v : vset) {
-            int tipx = v.x();
-            int tipy = v.y();
-            int tipz = v.z();
-
-            for (int loopx = tipx - ceilrad; loopx <= tipx + ceilrad; loopx++) {
-                for (int loopy = tipy - ceilrad; loopy <= tipy + ceilrad; loopy++) {
-                    for (int loopz = tipz - ceilrad; loopz <= tipz + ceilrad; loopz++) {
-                        if (lengthSq(loopx - tipx, loopy - tipy, loopz - tipz) <= radiusSquare) {
-                            returnset.add(BlockVector3.at(loopx, loopy, loopz));
-                        }
-                    }
-                }
-            }
-        }
-        return returnset;
-    }
-
-    private static Set<BlockVector3> getHollowed(Set<BlockVector3> vset) {
-        Set<BlockVector3> returnset = new HashSet<>();
-        for (BlockVector3 v : vset) {
-            double x = v.x();
-            double y = v.y();
-            double z = v.z();
-            if (!(vset.contains(BlockVector3.at(x + 1, y, z))
-                && vset.contains(BlockVector3.at(x - 1, y, z))
-                && vset.contains(BlockVector3.at(x, y + 1, z))
-                && vset.contains(BlockVector3.at(x, y - 1, z))
-                && vset.contains(BlockVector3.at(x, y, z + 1))
-                && vset.contains(BlockVector3.at(x, y, z - 1)))) {
-                returnset.add(v);
-            }
-        }
-        return returnset;
+        return LineGenerator.drawSpline(this, pattern, nodevectors, tension, bias, continuity, quality, radius, filled);
     }
 
     private void recurseHollow(Region region, BlockVector3 origin, BlockVector3Set outside) {
@@ -3210,10 +2845,6 @@ public class EditSession implements Extent, AutoCloseable {
 
     private static double lengthSq(double x, double y, double z) {
         return (x * x) + (y * y) + (z * z);
-    }
-
-    private static double lengthSq(double x, double z) {
-        return (x * x) + (z * z);
     }
 
 }
