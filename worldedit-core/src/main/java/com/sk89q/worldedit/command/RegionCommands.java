@@ -292,13 +292,13 @@ public class RegionCommands {
                          @Arg(desc = "The pattern of blocks to set")
                              Pattern pattern) throws WorldEditException {
         RegionFunction replace = new BlockReplace(editSession, pattern);
-        int affected = 0;
-        for (BlockVector3 position : CuboidEdges.getEdgePositions(region)) {
+        int[] affected = { 0 };
+        CuboidEdges.forEachEdgePosition(region.getMinimumPoint(), region.getMaximumPoint(), position -> {
             if (replace.apply(position)) {
-                affected++;
+                affected[0]++;
             }
-        }
-        return printAffected(actor, "worldedit.wireframe.changed", affected);
+        });
+        return printAffected(actor, "worldedit.wireframe.changed", affected[0]);
     }
 
     @Command(

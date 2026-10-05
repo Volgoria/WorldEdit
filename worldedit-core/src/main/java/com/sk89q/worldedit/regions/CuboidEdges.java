@@ -36,6 +36,23 @@ public final class CuboidEdges {
     }
 
     /**
+     * A consumer of positions that may throw.
+     *
+     * @param <E> the exception type
+     */
+    @FunctionalInterface
+    public interface PositionConsumer<E extends Exception> {
+
+        /**
+         * Accept a position.
+         *
+         * @param position the position
+         * @throws E on error
+         */
+        void accept(BlockVector3 position) throws E;
+    }
+
+    /**
      * Get every position lying on an edge of the cuboid spanned by the two
      * corners. Each position is returned exactly once, even where edges meet
      * or where the cuboid is flat along one or more axes.
@@ -45,20 +62,38 @@ public final class CuboidEdges {
      * @return the edge positions
      */
     public static List<BlockVector3> getEdgePositions(BlockVector3 pos1, BlockVector3 pos2) {
+        List<BlockVector3> positions = new ArrayList<>();
+        forEachEdgePosition(pos1, pos2, positions::add);
+        return positions;
+    }
+
+    /**
+     * Visit every position lying on an edge of the cuboid spanned by the two
+     * corners, in the order of {@link #getEdgePositions(BlockVector3, BlockVector3)},
+     * without collecting them, so huge cuboids do not need a huge list.
+     *
+     * @param pos1 one corner
+     * @param pos2 the opposite corner
+     * @param consumer the consumer of the positions
+     * @param <E> the exception type thrown by the consumer
+     * @throws E if the consumer throws
+     */
+    public static <E extends Exception> void forEachEdgePosition(BlockVector3 pos1, BlockVector3 pos2,
+                                                                 PositionConsumer<E> consumer) throws E {
         checkNotNull(pos1);
         checkNotNull(pos2);
+        checkNotNull(consumer);
         BlockVector3 min = pos1.getMinimum(pos2);
         BlockVector3 max = pos1.getMaximum(pos2);
         int[] xs = bounds(min.x(), max.x());
         int[] ys = bounds(min.y(), max.y());
         int[] zs = bounds(min.z(), max.z());
 
-        List<BlockVector3> positions = new ArrayList<>();
         // Edges along X, including the corners
         for (int y : ys) {
             for (int z : zs) {
                 for (int x = min.x(); x <= max.x(); x++) {
-                    positions.add(BlockVector3.at(x, y, z));
+                    consumer.accept(BlockVector3.at(x, y, z));
                 }
             }
         }
@@ -66,7 +101,7 @@ public final class CuboidEdges {
         for (int x : xs) {
             for (int z : zs) {
                 for (int y = min.y() + 1; y < max.y(); y++) {
-                    positions.add(BlockVector3.at(x, y, z));
+                    consumer.accept(BlockVector3.at(x, y, z));
                 }
             }
         }
@@ -74,11 +109,10 @@ public final class CuboidEdges {
         for (int x : xs) {
             for (int y : ys) {
                 for (int z = min.z() + 1; z < max.z(); z++) {
-                    positions.add(BlockVector3.at(x, y, z));
+                    consumer.accept(BlockVector3.at(x, y, z));
                 }
             }
         }
-        return positions;
     }
 
     /**

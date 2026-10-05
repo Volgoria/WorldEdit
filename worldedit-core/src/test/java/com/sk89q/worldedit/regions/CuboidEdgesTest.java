@@ -24,12 +24,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CuboidEdgesTest {
@@ -110,5 +113,27 @@ class CuboidEdgesTest {
         assertTrue(edges.contains(BlockVector3.at(4, 4, 2)));
         assertFalse(edges.contains(BlockVector3.at(2, 2, 2)), "center is not an edge");
         assertFalse(edges.contains(BlockVector3.at(2, 2, 0)), "face center is not an edge");
+    }
+
+    @Test
+    void forEachVisitsSamePositionsInOrder() {
+        BlockVector3 a = BlockVector3.at(3, -2, 7);
+        BlockVector3 b = BlockVector3.at(-1, 5, 2);
+        List<BlockVector3> visited = new ArrayList<>();
+        CuboidEdges.forEachEdgePosition(a, b, visited::add);
+        assertEquals(CuboidEdges.getEdgePositions(a, b), visited);
+    }
+
+    @Test
+    void forEachStopsOnConsumerException() {
+        int[] count = { 0 };
+        IOException thrown = assertThrows(IOException.class, () ->
+            CuboidEdges.forEachEdgePosition(BlockVector3.ZERO, BlockVector3.at(9, 9, 9), position -> {
+                if (++count[0] == 5) {
+                    throw new IOException("stop");
+                }
+            }));
+        assertEquals("stop", thrown.getMessage());
+        assertEquals(5, count[0]);
     }
 }
