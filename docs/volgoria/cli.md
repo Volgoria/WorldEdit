@@ -28,13 +28,14 @@ java -jar worldedit-cli.jar [options]
 
 ## Fichiers acceptés
 
-- Schematics Sponge (`.schem`) et MCEdit (`.schematic`) d'après le README de la CLI ; le format est
-  détecté d'après le **contenu** du fichier.
+- Schematics Sponge (`.schem`), MCEdit (`.schematic`) et structures vanilla (`.nbt`) ; le format
+  est détecté d'après le **contenu** du fichier.
 - Le fichier est réécrit dans **son propre format**. Les formats en lecture seule (MCEdit
-  `.schematic`, Sponge v1) ne peuvent donc pas être réenregistrés : l'échec d'écriture est seulement
-  signalé dans les journaux. Convertissez-les d'abord en `.schem` (v2 ou v3) en jeu.
-- La détection utilisant tous les formats lisibles de WorldEdit, les structures vanilla `.nbt` du
-  fork sont aussi reconnues (non mentionné dans le README de la CLI ; non couvert par ses tests).
+  `.schematic`, Sponge v1) ne peuvent pas être réenregistrés : la CLI l'annonce **dès le
+  chargement**, puis chaque tentative d'enregistrement affiche une erreur (« Your changes are NOT
+  saved »), le fichier d'origine reste intact et la CLI se termine avec le code **1**. Les commandes
+  qui ne modifient rien (inspection, `//count`...) restent utilisables. Pour modifier un tel fichier,
+  convertissez-le d'abord en `.schem` (v2 ou v3) ou `.nbt` en jeu.
 - Les fichiers `level.dat` (mondes) ne sont **pas encore** pris en charge.
 - Les modifications sont **enregistrées dans le fichier** après chaque commande réussie et à la
   sortie. L'écriture passe par un fichier temporaire : un échec ne laisse jamais de schematic tronquée.
@@ -83,7 +84,7 @@ script se termine par `stop`).
 | Code | Signification |
 |------|---------------|
 | 0 | Succès |
-| 1 | Erreur : fichier absent ou non pris en charge, échec du démarrage, ou (en mode non interactif) commande de script non reconnue |
+| 1 | Erreur : fichier absent ou non pris en charge, échec du démarrage, modifications impossibles à enregistrer (format en lecture seule, erreur disque), ou (en mode non interactif) commande de script non reconnue |
 | 2 | Arguments de ligne de commande invalides ; l'usage est affiché |
 
 ## Données

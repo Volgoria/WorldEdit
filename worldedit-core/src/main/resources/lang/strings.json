@@ -611,6 +611,8 @@
 
     "worldedit.cli.stopping": "Stopping!",
     "worldedit.cli.unknown-command": "Unknown command!",
+    "worldedit.cli.load-only-format": "{0} uses the {1} format, which WorldEdit can read but not write: changes to it cannot be saved. Convert it to a Sponge (.schem) or structure (.nbt) file to edit it.",
+    "worldedit.cli.save-failed": "Could not save {0}: {1}. Your changes are NOT saved.",
 
     "worldedit.version.bukkit.unsupported-adapter": "This WorldEdit version does not fully support your version of Bukkit. Block entities (e.g. chests) will be empty, block properties (e.g. rotation) will be missing, and other things may not work. Update WorldEdit to restore this functionality:\n{0}",
     "worldedit.bukkit.no-edit-without-adapter": "Editing on unsupported versions is disabled.",

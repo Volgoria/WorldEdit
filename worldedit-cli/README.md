@@ -31,8 +31,15 @@ Run WorldEdit commands against a schematic file.
 Commands are read one per line; type 'stop' to save and exit.
 ```
 
-Supported files are Sponge (`.schem`) and MCEdit (`.schematic`) schematics; `level.dat` worlds are
-not supported yet. The format is detected from the file's contents.
+Supported files are Sponge (`.schem`) and MCEdit (`.schematic`) schematics and vanilla structure
+files (`.nbt`); `level.dat` worlds are not supported yet. The format is detected from the file's
+contents.
+
+Changes are written back in the file's own format. MCEdit schematics and Sponge v1 schematics can be
+read but not written: the CLI says so when the file is loaded, every attempt to save changes to such a
+file prints an error and leaves the file untouched, and the CLI exits with code 1. Commands that don't
+modify the schematic still work. To edit such a file, convert it to a Sponge v2/v3 (`.schem`) or
+structure (`.nbt`) file first.
 
 Commands are typed as in game, for example `//set minecraft:stone`. The leading `/` of a single-slash
 command may be omitted, so `cli selectworld` and `/cli selectworld` are the same. Type `stop` (or
@@ -77,7 +84,7 @@ finishes (unless the script ends with `stop`).
 | Code | Meaning                                                                                  |
 |------|------------------------------------------------------------------------------------------|
 | 0    | Success.                                                                                 |
-| 1    | Error: missing or unsupported file, failed start-up, or (in non-interactive mode) a script command that wasn't recognised. |
+| 1    | Error: missing or unsupported file, failed start-up, changes that could not be saved (e.g. to a load-only format), or (in non-interactive mode) a script command that wasn't recognised. |
 | 2    | Invalid command line arguments; usage is printed.                                        |
 
 ## Files

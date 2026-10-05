@@ -19,6 +19,7 @@
 
 package com.sk89q.worldedit.cli;
 
+import com.sk89q.worldedit.internal.Constants;
 import org.enginehub.linbus.tree.LinCompoundTag;
 import org.enginehub.linbus.tree.LinIntTag;
 import org.enginehub.linbus.tree.LinTagType;
@@ -179,6 +180,44 @@ class CLIWorldEditTest {
             launch("-f", schematic.toString(), "-s", script.toString(), "-n"));
 
         assertAllStone(schematic);
+    }
+
+    /**
+     * Create a 3x1x1 air schematic in the load-only Sponge v1 format.
+     */
+    private Path setUpLoadOnlySchematic() throws IOException {
+        Path cliData = Files.createDirectories(workingDir.resolve("cli-data"));
+        // Sponge v1 schematics are read as Minecraft 1.13.2
+        Files.writeString(cliData.resolve(Constants.DATA_VERSION_MC_1_13_2 + "_1.json"), DATA_FILE);
+        Path schematic = tempDir.resolve("old.schem");
+        TestSchematics.writeSpongeV1Filled(schematic, 3, "minecraft:air");
+        return schematic;
+    }
+
+    @Test
+    void editingLoadOnlyFormatFailsLoudly() throws IOException {
+        Path schematic = setUpLoadOnlySchematic();
+        byte[] original = Files.readAllBytes(schematic);
+        Path script = tempDir.resolve("fill.txt");
+        Files.writeString(script,
+            """
+            cli selectworld
+            //set minecraft:stone
+            """);
+
+        assertEquals(CLIWorldEdit.EXIT_ERROR,
+            launch("-f", schematic.toString(), "-s", script.toString(), "-n"));
+
+        assertArrayEquals(original, Files.readAllBytes(schematic), "A load-only file must be left untouched");
+    }
+
+    @Test
+    void readingLoadOnlyFormatSucceeds() throws IOException {
+        Path schematic = setUpLoadOnlySchematic();
+        Path script = tempDir.resolve("select.txt");
+        Files.writeString(script, "cli selectworld\n");
+
+        assertEquals(CLIWorldEdit.EXIT_OK, launch("-f", schematic.toString(), "-s", script.toString(), "-n"));
     }
 
     @Test

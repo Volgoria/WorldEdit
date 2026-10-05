@@ -22,7 +22,6 @@ package com.sk89q.worldedit.cli.schematic;
 import com.google.common.collect.ImmutableSet;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.MaxChangedBlocksException;
-import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.blocks.BaseItemStack;
 import com.sk89q.worldedit.cli.CLIWorld;
@@ -211,15 +210,33 @@ public class ClipboardWorld extends AbstractWorld implements Clipboard, CLIWorld
         return clipboard.getMinimumPoint();
     }
 
+    /**
+     * Get whether changes can be written back to the file. Legacy formats
+     * such as MCEdit schematics and Sponge v1 schematics can only be read.
+     *
+     * @return true if the file's format supports writing
+     */
+    public boolean canSave() {
+        return format.supportsWriting();
+    }
+
+    /**
+     * Get a short, user-facing name of the file's format, e.g. {@code mcedit}.
+     *
+     * @return the name
+     */
+    public String getFormatName() {
+        return format.getAliases().stream().findFirst().orElse(format.getName());
+    }
+
     @Override
-    public void save(boolean force) {
+    public void save(boolean force) throws IOException {
         if (dirty || force) {
-            try {
-                writeAtomically();
-                dirty = false;
-            } catch (IOException e) {
-                WorldEdit.logger.warn("Failed to save clipboard to file: " + file, e);
+            if (!canSave()) {
+                throw new IOException("the " + getFormatName() + " format can only be read, not written");
             }
+            writeAtomically();
+            dirty = false;
         }
     }
 

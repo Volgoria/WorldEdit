@@ -19,14 +19,20 @@
 
 package com.sk89q.worldedit.cli;
 
+import java.io.IOException;
+
 public interface CLIWorld {
 
     /**
      * Saves this world back to file if dirty or forced.
      *
+     * <p>A world that could not be saved stays dirty.</p>
+     *
      * @param force Force a save
+     * @throws IOException if the world could not be saved, including when its
+     *     file format can only be read
      */
-    void save(boolean force);
+    void save(boolean force) throws IOException;
 
     /**
      * Gets whether the world is dirty.

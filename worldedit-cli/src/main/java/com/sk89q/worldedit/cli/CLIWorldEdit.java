@@ -38,7 +38,9 @@ import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.internal.util.LogManagerCompat;
 import com.sk89q.worldedit.registry.state.Property;
 import com.sk89q.worldedit.util.FileDialogUtil;
+import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
+import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BlockCategory;
 import com.sk89q.worldedit.world.block.BlockState;
@@ -87,6 +89,7 @@ public class CLIWorldEdit {
     private boolean started;
 
     private Actor commandSender;
+    private int saveFailures;
 
     private FileRegistries fileRegistries;
 
@@ -283,10 +286,35 @@ public class CLIWorldEdit {
         return version;
     }
 
+    /**
+     * Save every modified world (or every world, if forced). Failures are
+     * reported to the user and counted, see {@link #getSaveFailures()}.
+     *
+     * @param force whether to save unmodified worlds too
+     */
     public void saveAllWorlds(boolean force) {
-        platform.getWorlds().stream()
-                .filter(world -> world instanceof CLIWorld)
-                .forEach(world -> ((CLIWorld) world).save(force));
+        for (World world : platform.getWorlds()) {
+            if (!(world instanceof CLIWorld cliWorld)) {
+                continue;
+            }
+            try {
+                cliWorld.save(force);
+            } catch (IOException e) {
+                saveFailures++;
+                LOGGER.debug("Failed to save " + world.getName(), e);
+                commandSender.printError(TranslatableComponent.of("worldedit.cli.save-failed",
+                    TextComponent.of(world.getName()), TextComponent.of(String.valueOf(e.getMessage()))));
+            }
+        }
+    }
+
+    /**
+     * Get how many times saving a world failed.
+     *
+     * @return the number of failed saves
+     */
+    public int getSaveFailures() {
+        return saveFailures;
     }
 
     /**
@@ -313,6 +341,10 @@ public class CLIWorldEdit {
         platform.addWorld(world);
         WorldEdit.getInstance().getSessionManager().get(commandSender).setWorldOverride(world);
         LOGGER.info(() -> "Loaded '" + file + "'");
+        if (!world.canSave()) {
+            commandSender.printError(TranslatableComponent.of("worldedit.cli.load-only-format",
+                TextComponent.of(world.getName()), TextComponent.of(world.getFormatName())));
+        }
     }
 
     /**
@@ -448,11 +480,16 @@ public class CLIWorldEdit {
             app.onInitialized();
             app.loadWorld(file, format);
             int unknownCommands = app.run(scriptCommands, arguments.nonInteractive() ? null : stdin);
+            int exitCode = EXIT_OK;
+            if (app.getSaveFailures() > 0) {
+                LOGGER.error("Changes to '" + file + "' could not be saved; see the errors above.");
+                exitCode = EXIT_ERROR;
+            }
             if (arguments.nonInteractive() && unknownCommands > 0) {
                 LOGGER.error(unknownCommands + " command(s) in the script were not recognised.");
-                return EXIT_ERROR;
+                exitCode = EXIT_ERROR;
             }
-            return EXIT_OK;
+            return exitCode;
         } catch (Exception e) {
             LOGGER.error("An error occurred", e);
             return EXIT_ERROR;

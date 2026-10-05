@@ -68,6 +68,25 @@ final class TestSchematics {
     }
 
     /**
+     * Write a load-only Sponge v1 schematic of {@code width x 1 x 1} blocks, all of the given block.
+     */
+    static void writeSpongeV1Filled(Path path, int width, String block) throws IOException {
+        LinCompoundTag schematic = LinCompoundTag.builder()
+            .putInt("Version", 1)
+            .putShort("Width", (short) width)
+            .putShort("Height", (short) 1)
+            .putShort("Length", (short) 1)
+            .putInt("PaletteMax", 1)
+            .put("Palette", LinCompoundTag.builder().putInt(block, 0).build())
+            .putByteArray("BlockData", new byte[width])
+            .build();
+        try (OutputStream out = Files.newOutputStream(path);
+             DataOutputStream stream = new DataOutputStream(new GZIPOutputStream(out))) {
+            LinBinaryIO.write(stream, new LinRootEntry("Schematic", schematic));
+        }
+    }
+
+    /**
      * Read the {@code Schematic} tag of a Sponge v3 schematic.
      */
     static LinCompoundTag readSchematicTag(Path path) throws IOException {

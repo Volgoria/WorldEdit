@@ -42,6 +42,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -69,6 +70,7 @@ class ClipboardWorldTest {
         clipboard = mock(Clipboard.class);
         format = mock(ClipboardFormat.class);
         writer = mock(ClipboardWriter.class);
+        when(format.supportsWriting()).thenReturn(true);
         // The mocked writer writes a marker to whatever stream it's given
         when(format.getWriter(any())).thenAnswer(invocation -> {
             OutputStream out = invocation.getArgument(0);
@@ -174,16 +176,36 @@ class ClipboardWorldTest {
     void failedSaveKeepsOriginalFileAndDirtyFlag() throws IOException {
         ClipboardFormat failingFormat = mock(ClipboardFormat.class);
         ClipboardWriter failingWriter = mock(ClipboardWriter.class);
+        when(failingFormat.supportsWriting()).thenReturn(true);
         when(failingFormat.getWriter(any())).thenReturn(failingWriter);
         doThrow(new IOException("disk full")).when(failingWriter).write(any());
         world = new ClipboardWorld(file.toFile(), failingFormat, clipboard, "My House.schem");
         world.setDirty(true);
 
-        world.save(false);
+        assertThrows(IOException.class, () -> world.save(false));
 
         assertEquals("original", Files.readString(file), "Original schematic must not be truncated");
         assertTrue(world.isDirty(), "Unsaved changes must still be marked dirty");
         assertEquals(List.of(file), listFiles(), "Temporary file must be cleaned up");
+    }
+
+    @Test
+    void loadOnlyFormatRefusesToSave() throws IOException {
+        ClipboardFormat loadOnly = mock(ClipboardFormat.class);
+        when(loadOnly.supportsWriting()).thenReturn(false);
+        when(loadOnly.getName()).thenReturn("mcedit");
+        world = new ClipboardWorld(file.toFile(), loadOnly, clipboard, "My House.schem");
+        assertFalse(world.canSave());
+
+        // nothing to save yet
+        world.save(false);
+
+        world.setDirty(true);
+        IOException e = assertThrows(IOException.class, () -> world.save(false));
+        assertTrue(e.getMessage().contains("mcedit"), e.getMessage());
+        verify(loadOnly, never()).getWriter(any());
+        assertEquals("original", Files.readString(file));
+        assertTrue(world.isDirty());
     }
 
     private List<Path> listFiles() throws IOException {
