@@ -427,7 +427,8 @@ public class SchematicCommands {
         }
 
         try {
-            SchematicFiles.transfer(source.toPath(), target.toPath(), move, allowOverwrite);
+            // Only replace the file that was checked above: one created since then is kept
+            SchematicFiles.transfer(source.toPath(), target.toPath(), move, overwrite);
         } catch (IOException e) {
             LOGGER.warn("Failed to " + mode + " schematic " + source + " to " + target, e);
             actor.printError(TranslatableComponent.of("worldedit.schematic." + mode + ".failed",
