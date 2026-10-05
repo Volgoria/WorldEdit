@@ -82,6 +82,35 @@ public abstract class OrientedShape extends GeneratedShape {
     }
 
     /**
+     * Get the lowest local {@code w} coordinate of a slab of the given
+     * thickness centred on {@code w = 0}. The slab spans
+     * {@code [centredMin(t), centredMin(t) + t - 1]}; for even thicknesses
+     * the extra layer is on the positive side.
+     *
+     * @param thickness the thickness of the slab, at least 1
+     * @return the lowest {@code w} coordinate
+     */
+    protected static int centredMin(int thickness) {
+        return -(thickness - 1) / 2;
+    }
+
+    /**
+     * Get the normalized squared distance of a point to the centre of an
+     * axis-aligned ellipse: at most 1 inside the ellipse, above 1 outside.
+     *
+     * @param u the first coordinate
+     * @param v the second coordinate
+     * @param radiusU the radius along the first coordinate
+     * @param radiusV the radius along the second coordinate
+     * @return the normalized squared distance
+     */
+    protected static double ellipseDistance(int u, int v, double radiusU, double radiusV) {
+        double nu = u / radiusU;
+        double nv = v / radiusV;
+        return nu * nu + nv * nv;
+    }
+
+    /**
      * Test whether the given local coordinates are inside the shape.
      *
      * @param u the first in-plane coordinate

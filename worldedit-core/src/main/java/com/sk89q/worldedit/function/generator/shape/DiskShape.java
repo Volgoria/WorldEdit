@@ -51,16 +51,16 @@ public class DiskShape extends OrientedShape {
         checkArgument(thickness >= 1, "thickness must be >= 1");
         this.radiusU = radiusU + 0.5;
         this.radiusV = radiusV + 0.5;
-        this.minW = -(thickness - 1) / 2;
+        this.minW = centredMin(thickness);
         this.maxW = minW + thickness - 1;
     }
 
     private static BlockVector3 localMin(double radiusU, double radiusV, int thickness) {
-        return BlockVector3.at(-(int) Math.ceil(radiusU), -(int) Math.ceil(radiusV), -(thickness - 1) / 2);
+        return BlockVector3.at(-(int) Math.ceil(radiusU), -(int) Math.ceil(radiusV), centredMin(thickness));
     }
 
     private static BlockVector3 localMax(double radiusU, double radiusV, int thickness) {
-        return BlockVector3.at((int) Math.ceil(radiusU), (int) Math.ceil(radiusV), -(thickness - 1) / 2 + thickness - 1);
+        return BlockVector3.at((int) Math.ceil(radiusU), (int) Math.ceil(radiusV), centredMin(thickness) + thickness - 1);
     }
 
     @Override
@@ -70,8 +70,6 @@ public class DiskShape extends OrientedShape {
 
     @Override
     protected boolean containsLocalForHollow(int u, int v, int w) {
-        double nu = u / radiusU;
-        double nv = v / radiusV;
-        return nu * nu + nv * nv <= 1;
+        return ellipseDistance(u, v, radiusU, radiusV) <= 1;
     }
 }

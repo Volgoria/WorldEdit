@@ -60,16 +60,16 @@ public class ArchShape extends OrientedShape {
         this.outerV = height - 0.5;
         this.innerU = outerU - thickness;
         this.innerV = outerV - thickness;
-        this.minW = -(depth - 1) / 2;
+        this.minW = centredMin(depth);
         this.maxW = minW + depth - 1;
     }
 
     private static BlockVector3 localMin(int width, int depth) {
-        return BlockVector3.at(-(width / 2), 0, -(depth - 1) / 2);
+        return BlockVector3.at(-(width / 2), 0, centredMin(depth));
     }
 
     private static BlockVector3 localMax(int width, int height, int depth) {
-        return BlockVector3.at(width / 2, height - 1, -(depth - 1) / 2 + depth - 1);
+        return BlockVector3.at(width / 2, height - 1, centredMin(depth) + depth - 1);
     }
 
     @Override
@@ -77,16 +77,9 @@ public class ArchShape extends OrientedShape {
         if (v < 0 || w < minW || w > maxW) {
             return false;
         }
-        if (!insideEllipse(u, v, outerU, outerV, false)) {
+        if (ellipseDistance(u, v, outerU, outerV) > 1) {
             return false;
         }
-        return innerU <= 0 || innerV <= 0 || !insideEllipse(u, v, innerU, innerV, true);
-    }
-
-    private static boolean insideEllipse(int u, int v, double radiusU, double radiusV, boolean strict) {
-        double nu = u / radiusU;
-        double nv = v / radiusV;
-        double distance = nu * nu + nv * nv;
-        return strict ? distance < 1 : distance <= 1;
+        return innerU <= 0 || innerV <= 0 || ellipseDistance(u, v, innerU, innerV) >= 1;
     }
 }
