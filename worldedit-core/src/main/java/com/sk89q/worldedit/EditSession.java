@@ -33,7 +33,6 @@ import com.sk89q.worldedit.extent.InputExtent;
 import com.sk89q.worldedit.extent.MaskingExtent;
 import com.sk89q.worldedit.extent.NullExtent;
 import com.sk89q.worldedit.extent.TracingExtent;
-import com.sk89q.worldedit.extent.buffer.ForgetfulExtentBuffer;
 import com.sk89q.worldedit.extent.buffer.internal.BatchingExtent;
 import com.sk89q.worldedit.extent.cache.LastAccessExtentCache;
 import com.sk89q.worldedit.extent.inventory.BlockBag;
@@ -48,7 +47,6 @@ import com.sk89q.worldedit.extent.world.SurvivalModeExtent;
 import com.sk89q.worldedit.extent.world.WatchdogTickingExtent;
 import com.sk89q.worldedit.function.GroundFunction;
 import com.sk89q.worldedit.function.RegionMaskingFilter;
-import com.sk89q.worldedit.function.biome.BiomeReplace;
 import com.sk89q.worldedit.function.block.BlockDistributionCounter;
 import com.sk89q.worldedit.function.block.BlockReplace;
 import com.sk89q.worldedit.function.block.Counter;
@@ -68,9 +66,7 @@ import com.sk89q.worldedit.function.mask.Masks;
 import com.sk89q.worldedit.function.mask.NoiseFilter2D;
 import com.sk89q.worldedit.function.mask.RegionMask;
 import com.sk89q.worldedit.function.operation.ChangeSetExecutor;
-import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operation;
-import com.sk89q.worldedit.function.operation.OperationQueue;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.function.pattern.WaterloggedRemover;
@@ -85,16 +81,16 @@ import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
 import com.sk89q.worldedit.history.changeset.ChangeSet;
 import com.sk89q.worldedit.internal.edit.ExpressionOperations;
 import com.sk89q.worldedit.internal.edit.LineGenerator;
+import com.sk89q.worldedit.internal.edit.RegionCopyOperations;
+import com.sk89q.worldedit.internal.edit.RegionOperations;
 import com.sk89q.worldedit.internal.edit.ShapeGenerator;
 import com.sk89q.worldedit.internal.expression.Expression;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
 import com.sk89q.worldedit.internal.util.BlockVector3Set;
 import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.math.MathUtils;
 import com.sk89q.worldedit.math.Vector2;
 import com.sk89q.worldedit.math.Vector3;
 import com.sk89q.worldedit.math.noise.RandomNoise;
-import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.math.transform.ScaleAndTranslateTransform;
 import com.sk89q.worldedit.math.transform.Transform;
 import com.sk89q.worldedit.regions.CuboidRegion;
@@ -104,8 +100,6 @@ import com.sk89q.worldedit.regions.FlatRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionOperationException;
 import com.sk89q.worldedit.regions.Regions;
-import com.sk89q.worldedit.regions.shape.ArbitraryShape;
-import com.sk89q.worldedit.regions.shape.RegionShape;
 import com.sk89q.worldedit.util.Countable;
 import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.util.SideEffectSet;
@@ -1098,15 +1092,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int removeAbove(BlockVector3 position, int apothem, int height) throws MaxChangedBlocksException {
-        checkNotNull(position);
-        checkArgument(apothem >= 1, "apothem >= 1");
-        checkArgument(height >= 1, "height >= 1");
-
-        Region region = new CuboidRegion(
-                getWorld(), // Causes clamping of Y range
-                position.add(-apothem + 1, 0, -apothem + 1),
-                position.add(apothem - 1, height - 1, apothem - 1));
-        return setBlocks(region, BlockTypes.AIR.getDefaultState());
+        return RegionOperations.removeAbove(this, position, apothem, height);
     }
 
     /**
@@ -1119,15 +1105,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int removeBelow(BlockVector3 position, int apothem, int height) throws MaxChangedBlocksException {
-        checkNotNull(position);
-        checkArgument(apothem >= 1, "apothem >= 1");
-        checkArgument(height >= 1, "height >= 1");
-
-        Region region = new CuboidRegion(
-                getWorld(), // Causes clamping of Y range
-                position.add(-apothem + 1, 0, -apothem + 1),
-                position.add(apothem - 1, -height + 1, apothem - 1));
-        return setBlocks(region, BlockTypes.AIR.getDefaultState());
+        return RegionOperations.removeBelow(this, position, apothem, height);
     }
 
     /**
@@ -1140,15 +1118,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int removeNear(BlockVector3 position, Mask mask, int apothem) throws MaxChangedBlocksException {
-        checkNotNull(position);
-        checkArgument(apothem >= 1, "apothem >= 1");
-
-        BlockVector3 adjustment = BlockVector3.ONE.multiply(apothem - 1);
-        Region region = new CuboidRegion(
-                getWorld(), // Causes clamping of Y range
-                position.add(adjustment.multiply(-1)),
-                position.add(adjustment));
-        return replaceBlocks(region, mask, BlockTypes.AIR.getDefaultState());
+        return RegionOperations.removeNear(this, position, mask, apothem);
     }
 
     /**
@@ -1172,13 +1142,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int setBlocks(Region region, Pattern pattern) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(pattern);
-
-        BlockReplace replace = new BlockReplace(this, pattern);
-        RegionVisitor visitor = new RegionVisitor(region, replace);
-        Operations.completeLegacy(visitor);
-        return visitor.getAffected();
+        return RegionOperations.setBlocks(this, region, pattern);
     }
 
     /**
@@ -1221,15 +1185,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int replaceBlocks(Region region, Mask mask, Pattern pattern) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(mask);
-        checkNotNull(pattern);
-
-        BlockReplace replace = new BlockReplace(this, pattern);
-        RegionMaskingFilter filter = new RegionMaskingFilter(mask, replace);
-        RegionVisitor visitor = new RegionVisitor(region, filter);
-        Operations.completeLegacy(visitor);
-        return visitor.getAffected();
+        return RegionOperations.replaceBlocks(this, region, mask, pattern);
     }
 
     /**
@@ -1243,18 +1199,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int center(Region region, Pattern pattern) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(pattern);
-
-        Vector3 center = region.getCenter();
-        Region centerRegion = new CuboidRegion(
-                getWorld(), // Causes clamping of Y range
-                BlockVector3.at(((int) center.x()), ((int) center.y()), ((int) center.z())),
-                BlockVector3.at(
-                        MathUtils.roundHalfUp(center.x()),
-                        MathUtils.roundHalfUp(center.y()),
-                        MathUtils.roundHalfUp(center.z())));
-        return setBlocks(centerRegion, pattern);
+        return RegionOperations.center(this, region, pattern);
     }
 
     /**
@@ -1284,12 +1229,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makeCuboidFaces(Region region, Pattern pattern) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(pattern);
-
-        CuboidRegion cuboid = CuboidRegion.makeCuboid(region);
-        Region faces = cuboid.getFaces();
-        return setBlocks(faces, pattern);
+        return RegionOperations.makeCuboidFaces(this, region, pattern);
     }
 
     /**
@@ -1303,14 +1243,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makeFaces(final Region region, Pattern pattern) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(pattern);
-
-        if (region instanceof CuboidRegion) {
-            return makeCuboidFaces(region, pattern);
-        } else {
-            return new RegionShape(region).generate(this, pattern, true);
-        }
+        return RegionOperations.makeFaces(this, region, pattern);
     }
 
 
@@ -1337,12 +1270,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makeCuboidWalls(Region region, Pattern pattern) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(pattern);
-
-        CuboidRegion cuboid = CuboidRegion.makeCuboid(region);
-        Region faces = cuboid.getWalls();
-        return setBlocks(faces, pattern);
+        return RegionOperations.makeCuboidWalls(this, region, pattern);
     }
 
     /**
@@ -1356,27 +1284,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int makeWalls(final Region region, Pattern pattern) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(pattern);
-
-        if (region instanceof CuboidRegion) {
-            return makeCuboidWalls(region, pattern);
-        } else {
-            final int minY = region.getMinimumPoint().y();
-            final int maxY = region.getMaximumPoint().y();
-            final ArbitraryShape shape = new RegionShape(region) {
-                @Override
-                protected BaseBlock getMaterial(int x, int y, int z, BaseBlock defaultMaterial) {
-                    if (y > maxY || y < minY) {
-                        // Put holes into the floor and ceiling by telling ArbitraryShape that the shape goes on outside the region
-                        return defaultMaterial;
-                    }
-
-                    return super.getMaterial(x, y, z, defaultMaterial);
-                }
-            };
-            return shape.generate(this, pattern, true);
-        }
+        return RegionOperations.makeWalls(this, region, pattern);
     }
 
     /**
@@ -1464,16 +1372,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int stackCuboidRegion(Region region, BlockVector3 offset, int count,
                                  boolean copyEntities, boolean copyBiomes, Mask mask) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(offset);
-
-        BlockVector3 size = region.getMaximumPoint().subtract(region.getMinimumPoint()).add(1, 1, 1);
-        try {
-            return stackRegionBlockUnits(region, offset.multiply(size), count, copyEntities, copyBiomes, mask);
-        } catch (RegionOperationException e) {
-            // Should never be able to happen
-            throw new AssertionError(e);
-        }
+        return RegionCopyOperations.stackCuboidRegion(this, region, offset, count, copyEntities, copyBiomes, mask);
     }
 
     /**
@@ -1491,26 +1390,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int stackRegionBlockUnits(Region region, BlockVector3 offset, int count,
                                      boolean copyEntities, boolean copyBiomes, Mask mask) throws MaxChangedBlocksException, RegionOperationException {
-        checkNotNull(region);
-        checkNotNull(offset);
-        checkArgument(count >= 1, "count >= 1 required");
-
-        BlockVector3 size = region.getMaximumPoint().subtract(region.getMinimumPoint()).add(1, 1, 1);
-        BlockVector3 offsetAbs = offset.abs();
-        if (offsetAbs.x() < size.x() && offsetAbs.y() < size.y() && offsetAbs.z() < size.z()) {
-            throw new RegionOperationException(TranslatableComponent.of("worldedit.stack.intersecting-region"));
-        }
-        BlockVector3 to = region.getMinimumPoint();
-        ForwardExtentCopy copy = new ForwardExtentCopy(this, region, this, to);
-        copy.setRepetitions(count);
-        copy.setTransform(new AffineTransform().translate(offset));
-        copy.setCopyingEntities(copyEntities);
-        copy.setCopyingBiomes(copyBiomes);
-        if (mask != null) {
-            copy.setSourceMask(mask);
-        }
-        Operations.completeLegacy(copy);
-        return copy.getAffected();
+        return RegionCopyOperations.stackRegionBlockUnits(this, region, offset, count, copyEntities, copyBiomes, mask);
     }
 
     /**
@@ -1544,48 +1424,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int moveRegion(Region region, BlockVector3 offset, int multiplier,
                           boolean moveEntities, boolean copyBiomes, Mask mask, Pattern replacement) throws MaxChangedBlocksException {
-        checkNotNull(region);
-        checkNotNull(offset);
-        checkArgument(multiplier >= 1, "multiplier >= 1 required");
-        checkArgument(!copyBiomes || region instanceof FlatRegion, "can't copy biomes from non-flat region");
-
-        BlockVector3 to = region.getMinimumPoint();
-
-        // Remove the original blocks
-        Pattern pattern = replacement != null
-            ? replacement
-            : BlockTypes.AIR.getDefaultState();
-        BlockReplace remove = new BlockReplace(this, pattern);
-
-        // Copy to a buffer so we don't destroy our original before we can copy all the blocks from it
-        ForgetfulExtentBuffer buffer = new ForgetfulExtentBuffer(this, new RegionMask(region));
-        ForwardExtentCopy copy = new ForwardExtentCopy(this, region, buffer, to);
-        copy.setTransform(new AffineTransform().translate(offset.multiply(multiplier)));
-        copy.setSourceFunction(remove); // Remove
-
-        copy.setCopyingEntities(moveEntities);
-        copy.setRemovingEntities(moveEntities);
-        copy.setCopyingBiomes(copyBiomes);
-
-        if (mask != null) {
-            copy.setSourceMask(mask);
-        }
-
-        // Then we need to copy the buffer to the world
-        BlockReplace replace = new BlockReplace(this, buffer);
-        RegionVisitor visitor = new RegionVisitor(buffer.asRegion(), replace);
-
-        OperationQueue operation = new OperationQueue(copy, visitor);
-
-        if (copyBiomes) {
-            BiomeReplace biomeReplace = new BiomeReplace(this, buffer);
-            RegionVisitor biomeVisitor = new RegionVisitor(buffer.asRegion(), biomeReplace);
-            operation.offer(biomeVisitor);
-        }
-
-        Operations.completeLegacy(operation);
-
-        return copy.getAffected();
+        return RegionCopyOperations.moveRegion(this, region, offset, multiplier, moveEntities, copyBiomes, mask, replacement);
     }
 
     /**

@@ -21,8 +21,13 @@ package com.sk89q.worldedit.internal.edit;
 
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.MaxChangedBlocksException;
+import com.sk89q.worldedit.function.RegionFunction;
+import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.function.pattern.Pattern;
+import com.sk89q.worldedit.function.visitor.RegionVisitor;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.CuboidRegion;
+import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.Direction;
 
 /**
@@ -48,6 +53,31 @@ final class EditSupport {
 
     static double lengthSq(double x, double z) {
         return (x * x) + (z * z);
+    }
+
+    /**
+     * Apply a function to every block of a region.
+     *
+     * @return the number of blocks the function affected
+     */
+    static int apply(Region region, RegionFunction function) throws MaxChangedBlocksException {
+        RegionVisitor visitor = new RegionVisitor(region, function);
+        Operations.completeLegacy(visitor);
+        return visitor.getAffected();
+    }
+
+    /**
+     * Create a cuboid in the session's world, which clamps its Y range to the world's height limits.
+     */
+    static CuboidRegion clampedCuboid(EditSession session, BlockVector3 pos1, BlockVector3 pos2) {
+        return new CuboidRegion(session.getWorld(), pos1, pos2);
+    }
+
+    /**
+     * Get the size of the bounding box of a region.
+     */
+    static BlockVector3 size(Region region) {
+        return region.getMaximumPoint().subtract(region.getMinimumPoint()).add(1, 1, 1);
     }
 
     /**
