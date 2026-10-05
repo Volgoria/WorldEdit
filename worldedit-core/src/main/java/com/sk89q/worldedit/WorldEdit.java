@@ -597,21 +597,16 @@ public final class WorldEdit {
         if (!missingBlocks.isEmpty()) {
             TextComponent.Builder str = TextComponent.builder();
             str.append("Missing these blocks: ");
-            int size = missingBlocks.size();
-            int i = 0;
-
-            for (Map.Entry<BlockType, Integer> blockTypeIntegerEntry : missingBlocks.entrySet()) {
-                str.append(blockTypeIntegerEntry.getKey().getRichName());
-
-                str.append(" [Amt: ")
-                    .append(String.valueOf(blockTypeIntegerEntry.getValue()))
-                    .append("]");
-
-                ++i;
-
-                if (i != size) {
+            boolean first = true;
+            for (Map.Entry<BlockType, Integer> missing : missingBlocks.entrySet()) {
+                if (!first) {
                     str.append(", ");
                 }
+                first = false;
+                str.append(missing.getKey().getRichName())
+                    .append(" [Amt: ")
+                    .append(String.valueOf(missing.getValue()))
+                    .append("]");
             }
 
             actor.printError(str.build());
