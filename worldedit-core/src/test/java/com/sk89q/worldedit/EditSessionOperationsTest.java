@@ -19,8 +19,11 @@
 
 package com.sk89q.worldedit;
 
+import com.sk89q.worldedit.extension.platform.Actor;
+import com.sk89q.worldedit.extent.MaskingExtent;
 import com.sk89q.worldedit.function.mask.BlockTypeMask;
 import com.sk89q.worldedit.function.mask.ExistingBlockMask;
+import com.sk89q.worldedit.function.mask.Masks;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.Vector2;
@@ -30,6 +33,9 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.CylinderRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.Countable;
+import com.sk89q.worldedit.util.formatting.text.Component;
+import com.sk89q.worldedit.util.formatting.text.TextComponent;
+import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.util.test.InMemoryWorld;
 import com.sk89q.worldedit.util.test.SimpleMaterialRegistries;
 import com.sk89q.worldedit.world.block.BaseBlock;
@@ -40,12 +46,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -401,5 +412,27 @@ class EditSessionOperationsTest extends BaseWorldEditTest {
             assertEquals(3, session.getHighestTerrainBlock(1, 1, 0, 20, new BlockTypeMask(session, stone.getBlockType())));
             assertEquals(-5, session.getHighestTerrainBlock(30, 30, -5, 20));
         }
+    }
+
+    @Test
+    void tracingReportsFailedActions() throws Exception {
+        InMemoryWorld world = newWorld();
+        Actor actor = mock(Actor.class);
+        try (EditSession session = WorldEdit.getInstance().newEditSessionBuilder()
+            .world(world.world()).actor(actor).tracing(true).build()) {
+            session.setMask(Masks.negate(Masks.alwaysTrue()));
+            session.setBlock(BlockVector3.at(1, 2, 3), stone);
+            session.setMask(null);
+            session.setBlock(BlockVector3.at(4, 5, 6), stone);
+        }
+        assertEquals(Map.of(BlockVector3.at(4, 5, 6), stone), world.blocks());
+
+        ArgumentCaptor<Component> message = ArgumentCaptor.forClass(Component.class);
+        verify(actor).printDebug(message.capture());
+        verify(actor, never()).printError(any(Component.class));
+        TranslatableComponent failure = (TranslatableComponent) message.getValue();
+        assertEquals("worldedit.trace.action-failed", failure.key());
+        assertEquals(List.of("[SET_BLOCK]", BlockVector3.at(1, 2, 3).toString(), MaskingExtent.class.getName()),
+            failure.args().stream().map(arg -> ((TextComponent) arg).content()).toList());
     }
 }
