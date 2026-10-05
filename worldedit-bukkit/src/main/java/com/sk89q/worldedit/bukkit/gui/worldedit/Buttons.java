@@ -25,8 +25,13 @@ import com.sk89q.worldedit.bukkit.gui.Text;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Buttons shared by several WorldEdit menus.
@@ -36,6 +41,17 @@ final class Buttons {
     private Buttons() {
     }
 
+    /**
+     * Resolve an icon by Bukkit material name.
+     *
+     * @param name the material name, e.g. {@code OAK_SAPLING}
+     * @return the material, or paper if it does not exist on this server
+     */
+    static Material material(String name) {
+        Material material = Material.getMaterial(name.toUpperCase(Locale.ROOT));
+        return material != null && material.isItem() && !material.isAir() ? material : Material.PAPER;
+    }
+
     static Button back(String target, Button.ClickHandler handler) {
         return new Button(ItemBuilder.of(Material.ARROW)
             .name(Text.YELLOW + "Back")
@@ -43,10 +59,47 @@ final class Buttons {
             .build(), handler);
     }
 
+    static Button backToMain(WorldEditGui gui) {
+        return back("the main menu", (player, _) -> gui.openMain(player));
+    }
+
     static Button close() {
         return new Button(ItemBuilder.of(Material.BARRIER)
             .name(Text.RED + "Close")
             .build(), (player, _) -> player.closeInventory());
+    }
+
+    /**
+     * Create a button that runs a fixed command.
+     *
+     * @param gui the GUI
+     * @param icon the icon
+     * @param name the name
+     * @param command the command
+     * @param closeMenu whether to close the menu first, to let the player read the output
+     * @param after run after the command when the menu stays open, e.g. a refresh
+     * @param description the lore lines
+     * @return the button
+     */
+    static Button command(WorldEditGui gui, Material icon, String name, String command, boolean closeMenu,
+                          Consumer<Player> after, String... description) {
+        return new Button(ItemBuilder.of(icon)
+            .name(Text.GOLD + name)
+            .lore(gray(description))
+            .lore(Text.DARK_GRAY + command)
+            .build(), (player, _) -> {
+                if (closeMenu) {
+                    player.closeInventory();
+                }
+                gui.run(player, command);
+                if (!closeMenu) {
+                    after.accept(player);
+                }
+            });
+    }
+
+    private static List<String> gray(String... lines) {
+        return Arrays.stream(lines).map(line -> line.isEmpty() ? line : Text.GRAY + line).toList();
     }
 
     /**
@@ -75,7 +128,30 @@ final class Buttons {
             ).build(), handler);
     }
 
-    static Button mask(PlayerGuiState state, Button.ClickHandler handler) {
+    /**
+     * Create a pattern button that opens the block picker, which returns to
+     * the given menu.
+     *
+     * @param gui the GUI
+     * @param state the viewer's state
+     * @param backTarget the name of the menu to return to
+     * @param reopen reopens that menu
+     * @return the button
+     */
+    static Button patternPicker(WorldEditGui gui, PlayerGuiState state, String backTarget, Consumer<Player> reopen) {
+        return pattern(state, (player, _) -> new PatternMenu(gui, backTarget, reopen).open(player));
+    }
+
+    /**
+     * Create a button showing the replace mask: left-click types a new one in
+     * chat, right-click clears it.
+     *
+     * @param gui the GUI
+     * @param state the viewer's state
+     * @param reopen reopens the menu afterwards
+     * @return the button
+     */
+    static Button mask(WorldEditGui gui, PlayerGuiState state, Consumer<Player> reopen) {
         String mask = state.getMask();
         return new Button(ItemBuilder.of(mask == null ? Material.GLASS : Material.TINTED_GLASS)
             .name(Text.GOLD + "Replace mask: " + Text.WHITE + (mask == null ? "any non-air block" : mask))
@@ -84,7 +160,43 @@ final class Buttons {
                 "",
                 Text.YELLOW + "Left-click to type a mask",
                 Text.YELLOW + "Right-click to clear"
-            ).build(), handler);
+            ).build(), (player, click) -> {
+                if (click.isRightClick()) {
+                    gui.state(player).setMask(null);
+                    reopen.accept(player);
+                    return;
+                }
+                gui.ask(player, "Type a WorldEdit mask, e.g. 'grass_block,dirt':", InputKind.ARGUMENT, input -> {
+                    gui.state(player).setMask(input);
+                    sendMessage(player, "Replace mask is now " + Text.WHITE + input);
+                    reopen.accept(player);
+                }, reopen);
+            });
+    }
+
+    /**
+     * Create a search button: left-click types a query, right-click clears it.
+     *
+     * @param gui the GUI
+     * @param current the current query
+     * @param question the chat question
+     * @param setter stores the new query (empty to clear) and refreshes the menu
+     * @param reopen reopens the menu if the prompt is cancelled
+     * @return the button
+     */
+    static Button search(WorldEditGui gui, String current, String question, BiConsumer<Player, String> setter,
+                         Consumer<Player> reopen) {
+        return new Button(ItemBuilder.of(Material.OAK_SIGN)
+            .name(Text.GOLD + "Search" + (current.isEmpty() ? "" : ": " + Text.WHITE + current))
+            .lore(Text.YELLOW + "Left-click to filter by name", Text.YELLOW + "Right-click to clear the filter")
+            .glow(!current.isEmpty())
+            .build(), (player, click) -> {
+                if (click.isRightClick()) {
+                    setter.accept(player, "");
+                    return;
+                }
+                gui.prompts().ask(player, question, input -> setter.accept(player, input), () -> reopen.accept(player));
+            });
     }
 
     static Button toggle(String name, boolean enabled, String description, Runnable toggle, Runnable refresh) {
@@ -98,26 +210,45 @@ final class Buttons {
             });
     }
 
-    static Button sizeStep(int delta, int current, int max, IntConsumer setter, Runnable refresh) {
-        boolean increase = delta > 0;
+    /**
+     * Create a button changing a value by one, or by five when shift-clicked.
+     *
+     * @param increase true for a plus button
+     * @param current the current value
+     * @param clamp clamps a new value into range
+     * @param setter stores the new value
+     * @param refresh refreshes the menu
+     * @return the button
+     */
+    static Button step(boolean increase, int current, IntUnaryOperator clamp, IntConsumer setter, Runnable refresh) {
+        int sign = increase ? 1 : -1;
+        int one = clamp.applyAsInt(current + sign);
+        int five = clamp.applyAsInt(current + 5 * sign);
         return new Button(ItemBuilder.of(increase ? Material.LIME_STAINED_GLASS_PANE : Material.RED_STAINED_GLASS_PANE)
-            .name((increase ? Text.GREEN + "+" : Text.RED + "-") + Math.abs(delta))
-            .lore(Text.GRAY + "Size: " + current + " -> " + GuiCommands.clampSize(current + delta, max))
-            .amount(Math.abs(delta))
-            .build(), (_, _) -> {
-                setter.accept(GuiCommands.clampSize(current + delta, max));
+            .name(increase ? Text.GREEN + "+1" : Text.RED + "-1")
+            .lore(Text.GRAY + "Click: " + current + " -> " + one, Text.GRAY + "Shift-click: " + current + " -> " + five)
+            .build(), (_, click) -> {
+                setter.accept(click.isShiftClick() ? five : one);
                 refresh.run();
             });
     }
 
     static Button sizeDisplay(int size, int max, String what) {
-        String limit = max > 0 ? Integer.toString(Math.min(max, GuiCommands.HARD_MAX_SIZE))
-            : Integer.toString(GuiCommands.HARD_MAX_SIZE);
         return Button.decoration(ItemBuilder.of(Material.SLIME_BALL)
             .name(Text.GOLD + what + ": " + Text.WHITE + size)
-            .lore(Text.GRAY + "Maximum: " + limit)
+            .lore(Text.GRAY + "Maximum: " + max)
             .amount(size)
             .build());
+    }
+
+    /**
+     * Get the largest size allowed by a WorldEdit limit.
+     *
+     * @param configuredMax the limit from WorldEdit's configuration
+     * @return the effective maximum
+     */
+    static int effectiveMax(int configuredMax) {
+        return GuiCommands.clampSize(Integer.MAX_VALUE, configuredMax);
     }
 
     static void sendMessage(Player player, String message) {

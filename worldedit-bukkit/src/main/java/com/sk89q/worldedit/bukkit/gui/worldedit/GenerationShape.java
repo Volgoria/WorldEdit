@@ -22,40 +22,43 @@ package com.sk89q.worldedit.bukkit.gui.worldedit;
 /**
  * The shapes offered by the generation menu, mapped onto generation commands.
  */
-public enum GenerationShape {
-    SPHERE("Sphere", "Radius = size", "//sphere {h}{pattern} {size}"),
-    CYLINDER("Cylinder", "Radius = size, height = size", "//cyl {h}{pattern} {size} {size}"),
-    CONE("Cone", "Radius = size, height = 2 x size", "//cone {h}{pattern} {size} {double}"),
-    PYRAMID("Pyramid", "Size = size", "//pyramid {h}{pattern} {size}"),
-    TORUS("Torus", "Ring radius = size, tube = size / 3", "//torus {h}{pattern} {size} {third}"),
-    DOME("Dome", "Radius = size", "//dome {h}{pattern} {size}"),
-    DISK("Disk", "Radius = size, facing where you look", "//disk {h}{pattern} {size}"),
-    HELIX("Helix", "Radius = size, height = 2 x size, 3 turns", "//helix {pattern} {size} {double} 3"),
-    ARCH("Arch", "Width = 2 x size, height = size", "//arch {pattern} {double} {size}");
+public enum GenerationShape implements GuiAction {
+    SPHERE("Sphere", "Radius = size", "//sphere {h}{pattern} {size}", "SLIME_BLOCK"),
+    CYLINDER("Cylinder", "Radius = size, height = size", "//cyl {h}{pattern} {size} {size}", "CAULDRON"),
+    CONE("Cone", "Radius = size, height = 2 x size", "//cone {h}{pattern} {size} {double}", "POINTED_DRIPSTONE"),
+    PYRAMID("Pyramid", "Size = size", "//pyramid {h}{pattern} {size}", "SANDSTONE_STAIRS"),
+    TORUS("Torus", "Ring radius = size, tube = size / 3", "//torus {h}{pattern} {size} {third}", "HEART_OF_THE_SEA"),
+    DOME("Dome", "Radius = size", "//dome {h}{pattern} {size}", "TURTLE_HELMET"),
+    DISK("Disk", "Radius = size, facing where you look", "//disk {h}{pattern} {size}",
+        "HEAVY_WEIGHTED_PRESSURE_PLATE"),
+    HELIX("Helix", "Radius = size, height = 2 x size, 3 turns", "//helix {pattern} {size} {double} 3",
+        "TWISTING_VINES"),
+    ARCH("Arch", "Width = 2 x size, height = size", "//arch {pattern} {double} {size}", "STONE_BRICK_STAIRS");
 
-    private final String displayName;
-    private final String description;
-    private final String commandTemplate;
+    private final ActionSpec spec;
 
-    GenerationShape(String displayName, String description, String commandTemplate) {
-        this.displayName = displayName;
-        this.description = description;
-        this.commandTemplate = commandTemplate;
+    GenerationShape(String displayName, String description, String commandTemplate, String icon) {
+        this.spec = ActionSpec.close(displayName, description, icon, commandTemplate);
+    }
+
+    @Override
+    public ActionSpec spec() {
+        return spec;
     }
 
     public String getDisplayName() {
-        return displayName;
+        return spec.displayName();
     }
 
     public String getDescription() {
-        return description;
+        return spec.description();
     }
 
     public String getCommandTemplate() {
-        return commandTemplate;
+        return spec.template();
     }
 
     public boolean supportsHollow() {
-        return CommandTemplate.supportsHollow(commandTemplate);
+        return spec.supportsHollow();
     }
 }

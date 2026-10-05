@@ -52,34 +52,39 @@ final class MainMenu extends Menu {
             .glow(true)
             .build()));
 
-        set(slot(2, 2), ItemBuilder.of(Material.BRUSH)
-            .name(Text.GOLD + "Brushes")
-            .lore(Text.GRAY + "Bind sphere, smooth, overlay and", Text.GRAY + "other brushes to your item.",
-                "", Text.YELLOW + "Click to open")
-            .build(), (player, _) -> new BrushMenu(gui).open(player));
-        set(slot(2, 3), ItemBuilder.of(Buttons.patternIcon(state))
-            .name(Text.GOLD + "Blocks & Patterns")
-            .lore(Text.GRAY + "Pick the blocks used by every", Text.GRAY + "other menu.",
-                Text.GRAY + "Current: " + Text.WHITE + state.getPattern().toPattern(),
-                "", Text.YELLOW + "Click to open")
-            .build(), (player, _) -> new PatternMenu(gui, "the main menu", gui::openMain).open(player));
-        set(slot(2, 4), ItemBuilder.of(Material.BOOKSHELF)
-            .name(Text.GOLD + "Schematics")
-            .lore(Text.GRAY + "Browse, load and save schematics.", "", Text.YELLOW + "Click to open")
-            .build(), (player, _) -> new SchematicMenu(gui).open(player));
-        set(slot(2, 5), ItemBuilder.of(Material.GOLDEN_AXE)
-            .name(Text.GOLD + "Selection & Region")
-            .lore(Text.GRAY + "Wand, positions, //set, //replace,", Text.GRAY + "//walls, undo and redo.",
-                "", Text.YELLOW + "Click to open")
-            .build(), (player, _) -> new SelectionMenu(gui).open(player));
-        set(slot(2, 6), ItemBuilder.of(Material.BEACON)
-            .name(Text.GOLD + "Generation")
-            .lore(Text.GRAY + "Spheres, cylinders, pyramids, tori,", Text.GRAY + "domes, disks, helices and arches.",
-                "", Text.YELLOW + "Click to open")
-            .build(), (player, _) -> new GenerationMenu(gui).open(player));
+        // Row 1: tools and choices
+        set(slot(1, 2), entry(Material.BRUSH, "Brushes", "Sphere, smooth, spline, layer, shatter,",
+            "command and more brushes.", (player, _) -> WorldEditMenus.brushes(gui).open(player)));
+        set(slot(1, 3), entry(Material.BLAZE_ROD, "Tools", "Wands, measure, inspect, tree,",
+            "flood fill and other tools.", (player, _) -> WorldEditMenus.tools(gui).open(player)));
+        set(slot(1, 4), entry(Buttons.patternIcon(state), "Blocks", "Pick the blocks used by every other menu.",
+            "Current: " + Text.WHITE + state.getPattern().toPattern(),
+            (player, _) -> new PatternMenu(gui, "the main menu", gui::openMain).open(player)));
+        set(slot(1, 5), entry(Material.TINTED_GLASS, "Patterns & Masks", "Gradients, stripes, noise, and masks",
+            "such as slopes, walls and floors.", (player, _) -> new PresetMenu(gui).open(player)));
+        set(slot(1, 6), entry(Material.COMPARATOR, "Settings", "Limits, fast mode, side effects,",
+            "clipboard and history.", (player, _) -> new SessionMenu(gui).open(player)));
+        // Row 3: editing the world
+        set(slot(3, 2), entry(Material.GOLDEN_AXE, "Selection & Region", "Wand, positions, //set, //replace,",
+            "//walls, undo and redo.", (player, _) -> WorldEditMenus.selection(gui).open(player)));
+        set(slot(3, 3), entry(Material.BEACON, "Generation", "Spheres, cylinders, pyramids, tori,",
+            "domes, disks, helices and arches.", (player, _) -> WorldEditMenus.generation(gui).open(player)));
+        set(slot(3, 4), entry(Material.BRICKS, "Build", "Text, symmetry, terrain, paths,",
+            "caves, stairs and more.", (player, _) -> WorldEditMenus.build(gui).open(player)));
+        set(slot(3, 5), entry(Material.BOOKSHELF, "Schematics", "Browse, load, inspect, rename",
+            "and save schematics.", (player, _) -> new SchematicMenu(gui).open(player)));
+        set(slot(3, 6), entry(Material.PAINTING, "Images", "Pixel art, top-view maps",
+            "and heightmaps.", (player, _) -> new ImageMenu(gui).open(player)));
 
         set(slot(4, 4), Buttons.close());
         fillBorder(BORDER);
         fillEmpty(BACKGROUND);
+    }
+
+    private static Button entry(Material icon, String name, String line1, String line2, Button.ClickHandler handler) {
+        return new Button(ItemBuilder.of(icon)
+            .name(Text.GOLD + name)
+            .lore(Text.GRAY + line1, Text.GRAY + line2, "", Text.YELLOW + "Click to open")
+            .build(), handler);
     }
 }

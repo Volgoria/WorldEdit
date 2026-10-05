@@ -33,9 +33,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Lists the schematic files shown in the schematics browser.
+ * Lists the files shown in the file browsers (schematics and images).
+ *
+ * <p>Only regular files are listed: symbolic links are not followed, so a
+ * listing never leads outside the folder. Files whose path could not be
+ * passed safely as a command argument are skipped.</p>
  */
-public final class SchematicFiles {
+public final class FolderFiles {
 
     /**
      * How deep sub-folders are searched.
@@ -48,9 +52,9 @@ public final class SchematicFiles {
     public static final int MAX_FILES = 2000;
 
     /**
-     * A schematic file.
+     * A listed file.
      *
-     * @param relativePath the path relative to the schematics folder, using {@code /}
+     * @param relativePath the path relative to the listed folder, using {@code /}
      * @param size the file size in bytes
      * @param lastModified the last modification time in epoch millis
      */
@@ -72,17 +76,17 @@ public final class SchematicFiles {
          * @return the extension, or an empty string
          */
         public String extension() {
-            return SchematicFiles.extension(fileName());
+            return FolderFiles.extension(fileName());
         }
     }
 
-    private SchematicFiles() {
+    private FolderFiles() {
     }
 
     /**
-     * List schematic files below a folder, sorted by path.
+     * List files below a folder, sorted by path.
      *
-     * @param root the schematics folder
+     * @param root the folder
      * @param extensions accepted extensions, without dots (case-insensitive)
      * @return the files, empty if the folder does not exist
      * @throws IOException if the folder cannot be read
@@ -98,7 +102,10 @@ public final class SchematicFiles {
         try (Stream<Path> stream = Files.find(root, MAX_DEPTH,
             (path, attributes) -> attributes.isRegularFile()
                 && accepted.contains(extension(path.getFileName().toString())))) {
-            stream.limit(MAX_FILES).forEach(path -> entries.add(toEntry(root, path)));
+            stream.map(path -> toEntry(root, path))
+                .filter(entry -> isSafeRelativePath(entry.relativePath()))
+                .limit(MAX_FILES)
+                .forEach(entries::add);
         }
         entries.sort(Comparator.comparing(e -> e.relativePath().toLowerCase(Locale.ROOT)));
         return entries;
@@ -119,6 +126,25 @@ public final class SchematicFiles {
         return entries.stream()
             .filter(e -> e.relativePath().toLowerCase(Locale.ROOT).contains(needle))
             .toList();
+    }
+
+    /**
+     * Check whether a listed path can be shown and passed to a command.
+     *
+     * @param relativePath the path relative to the listed folder, using {@code /}
+     * @return false for empty, absolute or parent paths, hidden files, and
+     *     paths with quotes, backslashes, colour codes or control characters
+     */
+    public static boolean isSafeRelativePath(String relativePath) {
+        if (relativePath.isEmpty() || relativePath.length() > 255 || relativePath.startsWith("/")) {
+            return false;
+        }
+        for (String segment : relativePath.split("/", -1)) {
+            if (segment.isEmpty() || segment.startsWith(".")) {
+                return false;
+            }
+        }
+        return relativePath.chars().noneMatch(c -> c == '"' || c == '\\' || c == '§' || Character.isISOControl(c));
     }
 
     static String extension(String fileName) {

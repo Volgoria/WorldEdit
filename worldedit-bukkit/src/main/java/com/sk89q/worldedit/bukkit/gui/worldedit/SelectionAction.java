@@ -22,49 +22,50 @@ package com.sk89q.worldedit.bukkit.gui.worldedit;
 /**
  * The selection and region actions offered by the selection menu.
  */
-public enum SelectionAction {
-    WAND("Wand", "Get the selection wand", "//wand", true),
-    POS1("Position 1 here", "Set position 1 to where you stand", "//pos1", false),
-    POS2("Position 2 here", "Set position 2 to where you stand", "//pos2", false),
-    HPOS1("Position 1 (target)", "Set position 1 to the block you look at", "//hpos1", false),
-    HPOS2("Position 2 (target)", "Set position 2 to the block you look at", "//hpos2", false),
-    SEL_CUBOID("Cuboid selection", "Switch to cuboid selection mode", "//sel cuboid", false),
-    SEL_POLY("Polygon selection", "Switch to polygon selection mode", "//sel poly", false),
-    DESELECT("Clear selection", "Clear your current selection", "//desel", false),
-    EXPAND_VERT("Expand vertically", "Expand the selection to the world's height limits", "//expand vert", false),
-    SIZE("Selection size", "Show the size of the selection", "//size", true),
-    DISTR("Block distribution", "List the blocks in the selection", "//distr", true),
-    SET("Set", "Fill the selection with the pattern", "//set {pattern}", false),
-    REPLACE("Replace", "Replace the mask (or any non-air block) with the pattern", "//replace {mask}{pattern}", false),
-    WALLS("Walls", "Build walls around the selection", "//walls {pattern}", false),
-    FACES("Faces", "Build all six faces of the selection", "//faces {pattern}", false),
-    WIREFRAME("Wireframe", "Build the edges of the selection", "//wireframe {pattern}", false),
-    UNDO("Undo", "Undo your last edit", "//undo", false),
-    REDO("Redo", "Redo your last undone edit", "//redo", false),
-    HISTORY("History", "List your edit history", "//history", true);
+public enum SelectionAction implements GuiAction {
+    WAND(ActionSpec.close("Wand", "Get the selection wand", "WOODEN_AXE", "//wand")),
+    POS1(ActionSpec.run("Position 1 here", "Set position 1 to where you stand", "LIME_BANNER", "//pos1")),
+    POS2(ActionSpec.run("Position 2 here", "Set position 2 to where you stand", "RED_BANNER", "//pos2")),
+    HPOS1(ActionSpec.run("Position 1 (target)", "Set position 1 to the block you look at", "LIME_DYE", "//hpos1")),
+    HPOS2(ActionSpec.run("Position 2 (target)", "Set position 2 to the block you look at", "RED_DYE", "//hpos2")),
+    SEL_CUBOID(ActionSpec.run("Cuboid selection", "Switch to cuboid selection mode", "CHEST", "//sel cuboid")),
+    SEL_POLY(ActionSpec.run("Polygon selection", "Switch to polygon selection mode", "PRISMARINE_SHARD", "//sel poly")),
+    DESELECT(ActionSpec.run("Clear selection", "Clear your current selection", "BARRIER", "//desel")),
+    EXPAND_VERT(ActionSpec.run("Expand vertically", "Expand the selection to the world's height limits", "LADDER",
+        "//expand vert")),
+    SIZE(ActionSpec.close("Selection size", "Show the size of the selection", "COMPASS", "//size")),
+    DISTR(ActionSpec.close("Block distribution", "List the blocks in the selection", "MAP", "//distr")),
+    SET(ActionSpec.run("Set", "Fill the selection with the pattern", "GRASS_BLOCK", "//set {pattern}")),
+    REPLACE(ActionSpec.run("Replace", "Replace the mask (or any non-air block) with the pattern", "SHEARS",
+        "//replace {mask}{pattern}")),
+    WALLS(ActionSpec.run("Walls", "Build walls around the selection", "STONE_BRICK_WALL", "//walls {pattern}")),
+    FACES(ActionSpec.run("Faces", "Build all six faces of the selection", "GLASS", "//faces {pattern}")),
+    WIREFRAME(ActionSpec.run("Wireframe", "Build the edges of the selection", "IRON_BARS", "//wireframe {pattern}")),
+    UNDO(ActionSpec.run("Undo", "Undo your last edit", "CLOCK", "//undo")),
+    REDO(ActionSpec.run("Redo", "Redo your last undone edit", "RECOVERY_COMPASS", "//redo")),
+    HISTORY(ActionSpec.close("History", "List your edit history", "BOOK", "//history"));
 
-    private final String displayName;
-    private final String description;
-    private final String commandTemplate;
-    private final boolean closeAfter;
+    private final ActionSpec spec;
 
-    SelectionAction(String displayName, String description, String commandTemplate, boolean closeAfter) {
-        this.displayName = displayName;
-        this.description = description;
-        this.commandTemplate = commandTemplate;
-        this.closeAfter = closeAfter;
+    SelectionAction(ActionSpec spec) {
+        this.spec = spec;
+    }
+
+    @Override
+    public ActionSpec spec() {
+        return spec;
     }
 
     public String getDisplayName() {
-        return displayName;
+        return spec.displayName();
     }
 
     public String getDescription() {
-        return description;
+        return spec.description();
     }
 
     public String getCommandTemplate() {
-        return commandTemplate;
+        return spec.template();
     }
 
     /**
@@ -74,10 +75,10 @@ public enum SelectionAction {
      * @return true to close
      */
     public boolean closesMenu() {
-        return closeAfter;
+        return spec.behavior() != ActionSpec.Behavior.RUN;
     }
 
     public boolean usesPattern() {
-        return CommandTemplate.usesPattern(commandTemplate);
+        return spec.usesPattern();
     }
 }
