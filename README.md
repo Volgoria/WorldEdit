@@ -2,6 +2,13 @@
     <img src="worldedit-logo.svg" alt="WorldEdit" width="400" /> 
 </h1>
 
+> ### Fork Volgoria
+>
+> Ce dépôt est le fork **Volgoria** de WorldEdit. Il ajoute de nouvelles commandes de génération
+> et de construction, des brosses, des patterns et masques, l'import/export d'images, de nouveaux
+> formats de schematics (structure `.nbt`, OBJ, JSON) et un menu en jeu `/wegui`.
+> Documentation (en français) : **[docs/volgoria/README.md](docs/volgoria/README.md)**.
+
 **A Minecraft Map Editor... that runs in-game!**
 
 * With selections, schematics, copy and paste, brushes, and scripting!
