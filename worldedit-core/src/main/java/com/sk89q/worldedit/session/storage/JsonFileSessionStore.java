@@ -96,21 +96,23 @@ public class JsonFileSessionStore implements SessionStore {
     @Override
     public LocalSession load(UUID id) throws IOException {
         Path file = getPath(id);
+        LocalSession session;
         try (var reader = Files.newBufferedReader(file)) {
-            LocalSession session = gson.fromJson(reader, LocalSession.class);
-            if (session == null) {
-                LOGGER.warn("Loaded a null session from {}, creating new session", file);
-                if (!Files.deleteIfExists(file)) {
-                    LOGGER.warn("Failed to delete corrupted session {}", file);
-                }
-                session = new LocalSession();
-            }
-            return session;
+            session = gson.fromJson(reader, LocalSession.class);
         } catch (JsonParseException e) {
             throw new IOException(e);
         } catch (NoSuchFileException _) {
             return new LocalSession();
         }
+        if (session == null) {
+            LOGGER.warn("Loaded a null session from {}, creating new session", file);
+            // Delete only once the reader is closed; open files cannot be deleted on some platforms
+            if (!Files.deleteIfExists(file)) {
+                LOGGER.warn("Failed to delete corrupted session {}", file);
+            }
+            session = new LocalSession();
+        }
+        return session;
     }
 
     @Override

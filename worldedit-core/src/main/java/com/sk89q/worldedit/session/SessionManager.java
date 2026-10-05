@@ -80,7 +80,8 @@ public class SessionManager {
     private final Timer timer = new Timer("WorldEdit Session Manager", true);
     private final WorldEdit worldEdit;
     private final Map<UUID, SessionHolder> sessions = new HashMap<>();
-    private SessionStore store = new VoidStore();
+    // Replaced on configuration reload and read by the session saver thread
+    private volatile SessionStore store = new VoidStore();
 
     /**
      * Create a new session manager.
@@ -176,22 +177,14 @@ public class SessionManager {
             session.setConfiguration(config);
             session.setBlockChangeLimit(config.defaultChangeLimit);
             session.setTimeout(config.calculationTimeout);
-            try {
-                String sessionItem = session.isWandItemDefault() ? null : session.getWandItem();
-                setDefaultWand(sessionItem, config.wandItem, session, new SelectionWand());
-            } catch (InvalidToolBindException e) {
-                if (warnedInvalidTool.add("selwand")) {
-                    LOGGER.warn("Invalid selection wand tool set in config. Tool will not be assigned: " + e.getItemType());
-                }
-            }
-            try {
-                String sessionItem = session.isNavWandItemDefault() ? null : session.getNavWandItem();
-                setDefaultWand(sessionItem, config.navigationWand, session, new NavigationWand());
-            } catch (InvalidToolBindException e) {
-                if (warnedInvalidTool.add("navwand")) {
-                    LOGGER.warn("Invalid navigation wand tool set in config. Tool will not be assigned: " + e.getItemType());
-                }
-            }
+            setDefaultWand(
+                session.isWandItemDefault() ? null : session.getWandItem(), config.wandItem,
+                session, new SelectionWand(), "selection"
+            );
+            setDefaultWand(
+                session.isNavWandItemDefault() ? null : session.getNavWandItem(), config.navigationWand,
+                session, new NavigationWand(), "navigation"
+            );
             session.compareAndResetDirty();
 
             // Remember the session regardless of if it's currently active or not.
@@ -229,7 +222,12 @@ public class SessionManager {
         return false;
     }
 
-    private void setDefaultWand(String sessionItem, String configItem, LocalSession session, Tool wand) throws InvalidToolBindException {
+    /**
+     * Bind a wand to the session's preferred item, falling back to the configured item.
+     * An item that cannot hold a tool is reported once per wand kind and otherwise ignored.
+     */
+    private static void setDefaultWand(@Nullable String sessionItem, String configItem, LocalSession session,
+                                       Tool wand, String wandName) {
         ItemType wandItem = null;
         if (sessionItem != null) {
             wandItem = ItemTypes.get(sessionItem);
@@ -237,8 +235,15 @@ public class SessionManager {
         if (wandItem == null) {
             wandItem = ItemTypes.get(configItem);
         }
-        if (wandItem != null) {
+        if (wandItem == null) {
+            return;
+        }
+        try {
             session.setTool(wandItem, wand);
+        } catch (InvalidToolBindException e) {
+            if (warnedInvalidTool.add(wandName)) {
+                LOGGER.warn("Invalid " + wandName + " wand tool set in config. Tool will not be assigned: " + e.getItemType());
+            }
         }
     }
 
@@ -254,13 +259,15 @@ public class SessionManager {
             return;
         }
 
+        // Save everything to the store that was current when the save was queued
+        SessionStore targetStore = this.store;
         CompletableFuture<Map<SessionKey, LocalSession>> ftr = CompletableFuture.supplyAsync(() -> {
             for (Map.Entry<SessionKey, LocalSession> entry : sessions.entrySet()) {
                 SessionKey key = entry.getKey();
 
                 if (key.isPersistent()) {
                     try {
-                        store.save(getKey(key), entry.getValue());
+                        targetStore.save(getKey(key), entry.getValue());
                     } catch (IOException e) {
                         LOGGER.warn("Failed to write session for UUID " + getKey(key), e);
                     }
@@ -359,7 +366,8 @@ public class SessionManager {
     }
 
     @Subscribe
-    public void onSessionIdle(final SessionIdleEvent event) {
+    public synchronized void onSessionIdle(final SessionIdleEvent event) {
+        // Synchronized: the session map is a plain HashMap guarded by this manager's monitor
         SessionHolder holder = this.sessions.get(getKey(event.getKey()));
         if (holder != null && !holder.sessionIdle) {
             holder.sessionIdle = true;

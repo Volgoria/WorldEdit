@@ -42,6 +42,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Simple LocalConfiguration that loads settings using
@@ -195,18 +196,7 @@ public class PropertiesConfiguration extends LocalConfiguration {
      * @return the value
      */
     protected int getInt(String key, int def) {
-        String val = properties.getProperty(key);
-        if (val == null) {
-            properties.setProperty(key, String.valueOf(def));
-            return def;
-        } else {
-            try {
-                return Integer.parseInt(val);
-            } catch (NumberFormatException _) {
-                properties.setProperty(key, String.valueOf(def));
-                return def;
-            }
-        }
+        return getNumber(key, def, Integer::parseInt);
     }
 
     /**
@@ -217,18 +207,23 @@ public class PropertiesConfiguration extends LocalConfiguration {
      * @return the value
      */
     protected double getDouble(String key, double def) {
+        return getNumber(key, def, Double::parseDouble);
+    }
+
+    /**
+     * Get a numeric value, writing the default back if the value is missing or malformed.
+     */
+    private <N extends Number> N getNumber(String key, N def, Function<String, N> parser) {
         String val = properties.getProperty(key);
-        if (val == null) {
-            properties.setProperty(key, String.valueOf(def));
-            return def;
-        } else {
+        if (val != null) {
             try {
-                return Double.parseDouble(val);
+                return parser.apply(val);
             } catch (NumberFormatException _) {
-                properties.setProperty(key, String.valueOf(def));
-                return def;
+                // Replaced with the default below
             }
         }
+        properties.setProperty(key, String.valueOf(def));
+        return def;
     }
 
     /**

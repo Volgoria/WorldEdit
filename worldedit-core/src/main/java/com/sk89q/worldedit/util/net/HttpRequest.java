@@ -24,11 +24,8 @@ import com.google.common.collect.Maps;
 import com.google.common.net.UrlEscapers;
 import com.sk89q.worldedit.util.io.Closer;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -56,7 +53,6 @@ public class HttpRequest implements Closeable {
 
     private static final int CONNECT_TIMEOUT = 1000 * 5;
     private static final int READ_TIMEOUT = 1000 * 5;
-    private static final int READ_BUFFER_SIZE = 1024 * 8;
 
     private final Map<String, String> headers = new HashMap<>();
     private final String method;
@@ -165,10 +161,9 @@ public class HttpRequest implements Closeable {
             conn.connect();
 
             if (body != null) {
-                DataOutputStream out = new DataOutputStream(conn.getOutputStream());
-                out.write(body);
-                out.flush();
-                out.close();
+                try (OutputStream out = conn.getOutputStream()) {
+                    out.write(body);
+                }
             }
 
             inputStream = conn.getResponseCode() == HttpURLConnection.HTTP_OK
@@ -241,12 +236,8 @@ public class HttpRequest implements Closeable {
         }
 
         try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            int b = 0;
-            while ((b = inputStream.read()) != -1) {
-                bos.write(b);
-            }
-            return new BufferedResponse(bos.toByteArray());
+            // Bulk read; the connection stream is unbuffered, so byte-at-a-time reads were very slow
+            return new BufferedResponse(inputStream.readAllBytes());
         } finally {
             close();
         }
@@ -280,16 +271,8 @@ public class HttpRequest implements Closeable {
      * @throws InterruptedException on interruption
      */
     public HttpRequest saveContent(OutputStream out) throws IOException, InterruptedException {
-        BufferedInputStream bis;
-
         try {
-            bis = new BufferedInputStream(inputStream);
-
-            byte[] data = new byte[READ_BUFFER_SIZE];
-            int len;
-            while ((len = bis.read(data, 0, READ_BUFFER_SIZE)) >= 0) {
-                out.write(data, 0, len);
-            }
+            inputStream.transferTo(out);
         } finally {
             close();
         }
