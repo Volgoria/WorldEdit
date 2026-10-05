@@ -110,6 +110,16 @@ public final class PatternSelection {
     }
 
     /**
+     * Get the blocks last picked in the block picker, even if a custom
+     * pattern is currently used. Presets are built from these.
+     *
+     * @return the blocks, never empty
+     */
+    public List<String> getPickedBlocks() {
+        return List.copyOf(blocks);
+    }
+
+    /**
      * Get the pattern as a WorldEdit pattern argument.
      *
      * @return the pattern

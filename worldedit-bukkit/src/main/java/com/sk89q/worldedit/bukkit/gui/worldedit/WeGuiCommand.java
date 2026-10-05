@@ -29,11 +29,12 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * {@code /wegui [brushes|blocks|schematics|selection|generation]}, alias {@code //menu}.
+ * {@code /wegui [section]}, alias {@code //menu}.
  */
 final class WeGuiCommand implements TabExecutor {
 
-    private static final List<String> SECTIONS = List.of("brushes", "blocks", "schematics", "selection", "generation");
+    private static final List<String> SECTIONS = List.of("brushes", "tools", "blocks", "presets",
+        "settings", "selection", "generation", "build", "schematics", "images");
 
     private final WorldEditGui gui;
 
@@ -54,11 +55,16 @@ final class WeGuiCommand implements TabExecutor {
         String section = args.length > 0 ? args[0].toLowerCase(Locale.ROOT) : "";
         switch (section) {
             case "" -> gui.openMain(player);
-            case "brushes", "brush" -> new BrushMenu(gui).open(player);
+            case "brushes", "brush" -> WorldEditMenus.brushes(gui).open(player);
+            case "tools", "tool" -> WorldEditMenus.tools(gui).open(player);
+            case "presets", "masks", "mask" -> new PresetMenu(gui).open(player);
+            case "settings", "session" -> new SessionMenu(gui).open(player);
+            case "build", "builder" -> WorldEditMenus.build(gui).open(player);
+            case "images", "image" -> new ImageMenu(gui).open(player);
             case "blocks", "patterns", "pattern" -> new PatternMenu(gui, "the main menu", gui::openMain).open(player);
             case "schematics", "schematic", "schem" -> new SchematicMenu(gui).open(player);
-            case "selection", "region" -> new SelectionMenu(gui).open(player);
-            case "generation", "generate", "gen" -> new GenerationMenu(gui).open(player);
+            case "selection", "region" -> WorldEditMenus.selection(gui).open(player);
+            case "generation", "generate", "gen" -> WorldEditMenus.generation(gui).open(player);
             default -> {
                 player.sendMessage(Text.PREFIX + Text.RED + "Unknown section. Use one of: "
                     + String.join(", ", SECTIONS));

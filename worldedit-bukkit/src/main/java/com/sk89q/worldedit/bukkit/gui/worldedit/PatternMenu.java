@@ -120,26 +120,12 @@ final class PatternMenu extends PaginatedMenu<Material> {
     protected void buildControls(Player viewer) {
         PlayerGuiState state = gui.state(viewer);
         set(slot(CONTROL_ROW, 1), Buttons.back(backTarget, (player, _) -> back.accept(player)));
-
-        String search = state.getBlockSearch();
-        set(slot(CONTROL_ROW, 2), ItemBuilder.of(Material.OAK_SIGN)
-            .name(Text.GOLD + "Search" + (search.isEmpty() ? "" : ": " + Text.WHITE + search))
-            .lore(Text.YELLOW + "Left-click to search by name", Text.YELLOW + "Right-click to clear the search")
-            .glow(!search.isEmpty())
-            .build(), (player, click) -> {
-                if (click.isRightClick()) {
-                    gui.state(player).setBlockSearch("");
-                    setPage(0);
-                    refresh(player);
-                    return;
-                }
-                gui.prompts().ask(player, "Type part of a block name, e.g. 'planks':", input -> {
-                    gui.state(player).setBlockSearch(input);
-                    setPage(0);
-                    open(player);
-                }, () -> open(player));
-            });
-
+        set(slot(CONTROL_ROW, 2), Buttons.search(gui, state.getBlockSearch(), "Type part of a block name, e.g. 'planks':",
+            (player, query) -> {
+                gui.state(player).setBlockSearch(query);
+                setPage(0);
+                open(player);
+            }, this::open));
         set(slot(CONTROL_ROW, 3), Buttons.pattern(state, (player, _) -> {
             gui.state(player).getPattern().reset();
             Buttons.sendMessage(player, "Pattern reset to " + PatternSelection.DEFAULT_BLOCK + ".");
@@ -149,32 +135,14 @@ final class PatternMenu extends PaginatedMenu<Material> {
             .name(Text.GOLD + "Type a pattern")
             .lore(Text.GRAY + "Any WorldEdit pattern, e.g.",
                 Text.WHITE + "50%stone,50%andesite" + Text.GRAY + " or " + Text.WHITE + "##wool",
+                Text.GRAY + "Presets: see Patterns & Masks.",
                 "", Text.YELLOW + "Click to type it in chat")
-            .build(), (player, _) -> gui.prompts().ask(player, "Type a WorldEdit pattern:", input -> {
-                if (GuiCommands.isSingleArgument(input)) {
-                    gui.state(player).getPattern().setCustom(input);
-                    Buttons.sendMessage(player, "Pattern is now " + Text.WHITE + input);
-                } else {
-                    Buttons.sendMessage(player, Text.RED + "Patterns cannot contain spaces.");
-                }
+            .build(), (player, _) -> gui.ask(player, "Type a WorldEdit pattern:", InputKind.ARGUMENT, input -> {
+                gui.state(player).getPattern().setCustom(input);
+                Buttons.sendMessage(player, "Pattern is now " + Text.WHITE + input);
                 open(player);
-            }, () -> open(player)));
-        set(slot(CONTROL_ROW, 6), Buttons.mask(state, (player, click) -> {
-            if (click.isRightClick()) {
-                gui.state(player).setMask(null);
-                refresh(player);
-                return;
-            }
-            gui.prompts().ask(player, "Type a WorldEdit mask, e.g. 'grass_block,dirt':", input -> {
-                if (GuiCommands.isSingleArgument(input)) {
-                    gui.state(player).setMask(input);
-                    Buttons.sendMessage(player, "Replace mask is now " + Text.WHITE + input);
-                } else {
-                    Buttons.sendMessage(player, Text.RED + "Masks cannot contain spaces.");
-                }
-                open(player);
-            }, () -> open(player));
-        }));
+            }, this::open));
+        set(slot(CONTROL_ROW, 6), Buttons.mask(gui, state, this::open));
         set(slot(CONTROL_ROW, 7), Buttons.close());
     }
 }

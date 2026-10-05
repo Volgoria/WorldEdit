@@ -35,6 +35,11 @@ public final class PlayerGuiState {
     private boolean generationHollow;
     private String blockSearch = "";
     private String schematicSearch = "";
+    private String imageSearch = "";
+    private int toolSize = 10;
+    private int buildSize = 5;
+    private int presetValue = 4;
+    private String saveFormat = GuiCommands.SAVE_FORMATS.get(0);
 
     public PatternSelection getPattern() {
         return pattern;
@@ -95,5 +100,45 @@ public final class PlayerGuiState {
 
     public void setSchematicSearch(String schematicSearch) {
         this.schematicSearch = schematicSearch == null ? "" : schematicSearch.trim();
+    }
+
+    public String getImageSearch() {
+        return imageSearch;
+    }
+
+    public void setImageSearch(String imageSearch) {
+        this.imageSearch = imageSearch == null ? "" : imageSearch.trim();
+    }
+
+    public int getToolSize() {
+        return toolSize;
+    }
+
+    public void setToolSize(int toolSize) {
+        this.toolSize = toolSize;
+    }
+
+    public int getBuildSize() {
+        return buildSize;
+    }
+
+    public void setBuildSize(int buildSize) {
+        this.buildSize = buildSize;
+    }
+
+    public int getPresetValue() {
+        return presetValue;
+    }
+
+    public void setPresetValue(int presetValue) {
+        this.presetValue = Presets.clampValue(presetValue);
+    }
+
+    public String getSaveFormat() {
+        return saveFormat;
+    }
+
+    public void setSaveFormat(String saveFormat) {
+        this.saveFormat = GuiCommands.SAVE_FORMATS.contains(saveFormat) ? saveFormat : GuiCommands.SAVE_FORMATS.get(0);
     }
 }

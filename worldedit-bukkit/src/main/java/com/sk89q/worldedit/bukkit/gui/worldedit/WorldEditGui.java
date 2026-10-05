@@ -20,6 +20,7 @@
 package com.sk89q.worldedit.bukkit.gui.worldedit;
 
 import com.sk89q.worldedit.LocalConfiguration;
+import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.WorldEditPlugin;
 import com.sk89q.worldedit.bukkit.gui.ChatPromptRegistry;
@@ -27,7 +28,9 @@ import com.sk89q.worldedit.bukkit.gui.ChatPrompts;
 import com.sk89q.worldedit.bukkit.gui.GuiScheduler;
 import com.sk89q.worldedit.bukkit.gui.Menu;
 import com.sk89q.worldedit.bukkit.gui.MenuListener;
+import com.sk89q.worldedit.bukkit.gui.Text;
 import com.sk89q.worldedit.event.platform.CommandEvent;
+import com.sk89q.worldedit.util.image.ImageFiles;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.PluginCommand;
@@ -45,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Entry point of the in-game WorldEdit menus ({@code /wegui}).
@@ -140,6 +144,40 @@ public final class WorldEditGui implements Listener {
     }
 
     /**
+     * Ask the player for a value in chat, validate it and turn it into a
+     * command argument. Invalid answers are reported and the menu reopened.
+     *
+     * @param player the player
+     * @param question the question
+     * @param kind how to validate the answer
+     * @param onArgument called with the validated argument
+     * @param reopen reopens the menu on cancel or invalid input
+     */
+    public void ask(Player player, String question, InputKind kind, Consumer<String> onArgument,
+                    Consumer<Player> reopen) {
+        prompts.ask(player, question, input -> {
+            String argument = kind.toArgument(input);
+            if (argument == null) {
+                player.sendMessage(Text.PREFIX + Text.RED + kind.errorMessage());
+                reopen.accept(player);
+                return;
+            }
+            onArgument.accept(argument);
+        }, () -> reopen.accept(player));
+    }
+
+    /**
+     * Get the player's WorldEdit session, which holds history, clipboard
+     * and settings.
+     *
+     * @param player the player
+     * @return the session
+     */
+    public LocalSession session(Player player) {
+        return plugin.getSession(player);
+    }
+
+    /**
      * Run a WorldEdit command as the player, through WorldEdit's own command
      * manager so that permissions, limits and history apply as usual.
      *
@@ -166,6 +204,15 @@ public final class WorldEditGui implements Listener {
      */
     public Path schematicsFolder() {
         return WorldEdit.getInstance().getWorkingDirectoryPath(config().saveDir);
+    }
+
+    /**
+     * Get WorldEdit's image folder, used by {@code //image} and {@code //heightmap}.
+     *
+     * @return the folder
+     */
+    public Path imagesFolder() {
+        return ImageFiles.getDirectory(WorldEdit.getInstance());
     }
 
     /**

@@ -10,7 +10,7 @@ website: https://enginehub.org/worldedit
 commands:
   wegui:
     description: Open the WorldEdit menu
-    usage: /<command> [brushes|blocks|schematics|selection|generation]
+    usage: /<command> [brushes|tools|blocks|presets|settings|selection|generation|build|schematics|images]
     aliases: [/menu]
     permission: worldedit.gui
 permissions:
