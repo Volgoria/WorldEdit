@@ -80,7 +80,8 @@ public class SessionManager {
     private final Timer timer = new Timer("WorldEdit Session Manager", true);
     private final WorldEdit worldEdit;
     private final Map<UUID, SessionHolder> sessions = new HashMap<>();
-    private SessionStore store = new VoidStore();
+    // Replaced on configuration reload and read by the session saver thread
+    private volatile SessionStore store = new VoidStore();
 
     /**
      * Create a new session manager.
@@ -258,13 +259,15 @@ public class SessionManager {
             return;
         }
 
+        // Save everything to the store that was current when the save was queued
+        SessionStore targetStore = this.store;
         CompletableFuture<Map<SessionKey, LocalSession>> ftr = CompletableFuture.supplyAsync(() -> {
             for (Map.Entry<SessionKey, LocalSession> entry : sessions.entrySet()) {
                 SessionKey key = entry.getKey();
 
                 if (key.isPersistent()) {
                     try {
-                        store.save(getKey(key), entry.getValue());
+                        targetStore.save(getKey(key), entry.getValue());
                     } catch (IOException e) {
                         LOGGER.warn("Failed to write session for UUID " + getKey(key), e);
                     }
@@ -363,7 +366,8 @@ public class SessionManager {
     }
 
     @Subscribe
-    public void onSessionIdle(final SessionIdleEvent event) {
+    public synchronized void onSessionIdle(final SessionIdleEvent event) {
+        // Synchronized: the session map is a plain HashMap guarded by this manager's monitor
         SessionHolder holder = this.sessions.get(getKey(event.getKey()));
         if (holder != null && !holder.sessionIdle) {
             holder.sessionIdle = true;
