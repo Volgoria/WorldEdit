@@ -66,6 +66,8 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.sk89q.worldedit.command.util.CommandHelper.findFreePosition;
+import static com.sk89q.worldedit.command.util.CommandHelper.printAffected;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.ORIENTATION_REGION;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.PLACEMENT;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.REGION;
@@ -149,8 +151,7 @@ public class BuildCommands {
 
         BlockVector3 origin = session.getPlacementPosition(actor);
         int affected = writer.write(editSession, origin, pattern, text, right, up, depth);
-        actor.printInfo(TranslatableComponent.of("worldedit.text.created", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.text.created", affected);
     }
 
     @Command(
@@ -170,8 +171,7 @@ public class BuildCommands {
                       @Switch(name = 'a', desc = "Do not copy air blocks")
                           boolean skipAir) throws WorldEditException {
         int affected = RegionMirror.mirror(editSession, region, direction, skipAir);
-        actor.printInfo(TranslatableComponent.of("worldedit.symmetry.mirrored", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.symmetry.mirrored", affected);
     }
 
     @Command(
@@ -251,8 +251,7 @@ public class BuildCommands {
         noise.setOctaveCount(octaves);
         NoiseTerrain terrain = new NoiseTerrain(noise, scale, actualAmplitude);
         int affected = terrain.generate(editSession, region, pattern, topPattern, keepAbove ? null : air());
-        actor.printInfo(TranslatableComponent.of("worldedit.terrain.generated", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.terrain.generated", affected);
     }
 
     @Command(
@@ -300,8 +299,7 @@ public class BuildCommands {
 
         PathBuilder builder = new PathBuilder(width, headroom, !floating, PATH_SEARCH_RANGE);
         int affected = builder.build(editSession, points, loop, pattern, air());
-        actor.printInfo(TranslatableComponent.of("worldedit.path.created", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.path.created", affected);
     }
 
     @Command(
@@ -330,8 +328,7 @@ public class BuildCommands {
 
         CaveCarver carver = new CaveCarver(size, length, seedOf(seed));
         int affected = carver.carve(editSession, region, count, air());
-        actor.printInfo(TranslatableComponent.of("worldedit.cave.carved", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.cave.carved", affected);
     }
 
     @Command(
@@ -365,8 +362,7 @@ public class BuildCommands {
 
         BlockVector3 origin = session.getPlacementPosition(actor);
         int affected = StairBuilder.straight(editSession, origin, direction, height, width, pattern, support);
-        actor.printInfo(TranslatableComponent.of("worldedit.staircase.created", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.staircase.created", affected);
     }
 
     @Command(
@@ -398,11 +394,8 @@ public class BuildCommands {
         BlockVector3 center = session.getPlacementPosition(actor);
         int affected = StairBuilder.spiral(editSession, center, radius, height, stepsPerTurn,
             !counterClockwise, pattern, pillar);
-        if (actor instanceof Player player) {
-            player.findFreePosition();
-        }
-        actor.printInfo(TranslatableComponent.of("worldedit.spiralstairs.created", TextComponent.of(affected)));
-        return affected;
+        findFreePosition(actor);
+        return printAffected(actor, "worldedit.spiralstairs.created", affected);
     }
 
     @Command(
@@ -426,8 +419,7 @@ public class BuildCommands {
         checkCommandArgument(percent >= 0 && percent <= 100, "Percent must be between 0 and 100");
         int affected = SurfaceTexturizer.apply(editSession, region, pattern, percent / 100.0, mask,
             new Random(seedOf(seed)));
-        actor.printInfo(TranslatableComponent.of("worldedit.randomize.changed", TextComponent.of(affected)));
-        return affected;
+        return printAffected(actor, "worldedit.randomize.changed", affected);
     }
 
 }
