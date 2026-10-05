@@ -29,16 +29,21 @@ import com.sk89q.worldedit.command.factory.ReplaceFactory;
 import com.sk89q.worldedit.command.factory.TreeGeneratorFactory;
 import com.sk89q.worldedit.command.tool.BrushTool;
 import com.sk89q.worldedit.command.tool.InvalidToolBindException;
+import com.sk89q.worldedit.command.tool.brush.BlobBrush;
 import com.sk89q.worldedit.command.tool.brush.Brush;
 import com.sk89q.worldedit.command.tool.brush.ButcherBrush;
 import com.sk89q.worldedit.command.tool.brush.ClipboardBrush;
 import com.sk89q.worldedit.command.tool.brush.CylinderBrush;
+import com.sk89q.worldedit.command.tool.brush.DrainBrush;
+import com.sk89q.worldedit.command.tool.brush.FillBrush;
 import com.sk89q.worldedit.command.tool.brush.GravityBrush;
 import com.sk89q.worldedit.command.tool.brush.HollowCylinderBrush;
 import com.sk89q.worldedit.command.tool.brush.HollowSphereBrush;
 import com.sk89q.worldedit.command.tool.brush.ImageHeightmapBrush;
+import com.sk89q.worldedit.command.tool.brush.LineBrush;
 import com.sk89q.worldedit.command.tool.brush.MorphBrush;
 import com.sk89q.worldedit.command.tool.brush.OperationFactoryBrush;
+import com.sk89q.worldedit.command.tool.brush.OverlayBrush;
 import com.sk89q.worldedit.command.tool.brush.SmoothBrush;
 import com.sk89q.worldedit.command.tool.brush.SnowSmoothBrush;
 import com.sk89q.worldedit.command.tool.brush.SphereBrush;
@@ -717,6 +722,162 @@ public class BrushCommands {
         tool.setSize(brushSize);
 
         player.printInfo(TranslatableComponent.of("worldedit.brush.morph.equip", TextComponent.of((int) brushSize)));
+        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+    }
+
+    @Command(
+        name = "blob",
+        desc = "Blob brush, creates organic noise-deformed spheres",
+        descFooter = "Example: '/brush blob stone 6 60'"
+    )
+    @CommandPermissions("worldedit.brush.blob")
+    public void blobBrush(Player player, LocalSession session,
+                          @Arg(desc = "The pattern of blocks to set")
+                              Pattern pattern,
+                          @Arg(desc = "The base radius of the blob", def = "5")
+                              double radius,
+                          @Arg(desc = "The roughness of the surface, between 0 and 100", def = "50")
+                              double roughness) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+        if (roughness < 0 || roughness > 100) {
+            player.printError(TranslatableComponent.of("worldedit.brush.blob.roughness-out-of-range", TextComponent.of(roughness)));
+            return;
+        }
+
+        BrushTool tool = session.forceBrush(
+            player.getItemInHand(HandSide.MAIN_HAND).getType(),
+            new BlobBrush(roughness),
+            "worldedit.brush.blob"
+        );
+        tool.setFill(pattern);
+        tool.setSize(radius);
+
+        player.printInfo(TranslatableComponent.of("worldedit.brush.blob.equip",
+            TextComponent.of((int) radius), TextComponent.of((int) roughness)));
+        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+    }
+
+    @Command(
+        name = "line",
+        desc = "Line brush, draws lines between the blocks you target",
+        descFooter = "The first click marks the start point, the second click draws the line.\n"
+            + "Example: '/brush line -c oak_fence'"
+    )
+    @CommandPermissions("worldedit.brush.line")
+    public void lineBrush(Player player, LocalSession session,
+                          @Arg(desc = "The pattern of blocks to set")
+                              Pattern pattern,
+                          @Arg(desc = "The thickness (radius) of the line", def = "0")
+                              double radius,
+                          @Switch(name = 'c', desc = "Chain lines, starting each line where the previous one ended")
+                              boolean chain,
+                          @Switch(name = 'h', desc = "Only draw the shell of thick lines")
+                              boolean hollow) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+
+        BrushTool tool = session.forceBrush(
+            player.getItemInHand(HandSide.MAIN_HAND).getType(),
+            new LineBrush(chain, hollow),
+            "worldedit.brush.line"
+        );
+        tool.setFill(pattern);
+        tool.setSize(radius);
+
+        player.printInfo(TranslatableComponent.of("worldedit.brush.line.equip", TextComponent.of((int) radius)));
+        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+    }
+
+    @Command(
+        name = "overlay",
+        aliases = { "cover" },
+        desc = "Overlay brush, covers the top surface of the terrain",
+        descFooter = "Example: '/brush overlay -r grass_block 6' re-surfaces terrain with grass"
+    )
+    @CommandPermissions("worldedit.brush.overlay")
+    public void overlayBrush(Player player, LocalSession session,
+                             @Arg(desc = "The pattern of blocks to set")
+                                 Pattern pattern,
+                             @Arg(desc = "The radius of the brush", def = "5")
+                                 double radius,
+                             @Arg(desc = "The number of layers to place or replace", def = "1")
+                                 int depth,
+                             @Switch(name = 'r', desc = "Replace the surface blocks instead of placing on top of them")
+                                 boolean replace) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+        worldEdit.checkMaxBrushRadius(depth);
+        if (depth < 1) {
+            player.printError(TranslatableComponent.of("worldedit.brush.overlay.depth-too-small", TextComponent.of(depth)));
+            return;
+        }
+
+        BrushTool tool = session.forceBrush(
+            player.getItemInHand(HandSide.MAIN_HAND).getType(),
+            new OverlayBrush(depth, replace),
+            "worldedit.brush.overlay"
+        );
+        tool.setFill(pattern);
+        tool.setSize(radius);
+
+        player.printInfo(TranslatableComponent.of("worldedit.brush.overlay.equip",
+            TextComponent.of((int) radius), TextComponent.of(depth)));
+        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+    }
+
+    @Command(
+        name = "fill",
+        aliases = { "filldown" },
+        desc = "Fill brush, fills holes and depressions up to the targeted block's level",
+        descFooter = "Example: '/brush fill water 8 10' turns a crater into a lake"
+    )
+    @CommandPermissions("worldedit.brush.fill")
+    public void fillBrush(Player player, LocalSession session,
+                          @Arg(desc = "The pattern of blocks to set")
+                              Pattern pattern,
+                          @Arg(desc = "The radius of the brush", def = "5")
+                              double radius,
+                          @Arg(desc = "The maximum depth to fill down", def = "5")
+                              int depth) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+        worldEdit.checkMaxBrushRadius(depth);
+        if (depth < 1) {
+            player.printError(TranslatableComponent.of("worldedit.brush.fill.depth-too-small", TextComponent.of(depth)));
+            return;
+        }
+
+        BrushTool tool = session.forceBrush(
+            player.getItemInHand(HandSide.MAIN_HAND).getType(),
+            new FillBrush(depth),
+            "worldedit.brush.fill"
+        );
+        tool.setFill(pattern);
+        tool.setSize(radius);
+
+        player.printInfo(TranslatableComponent.of("worldedit.brush.fill.equip",
+            TextComponent.of((int) radius), TextComponent.of(depth)));
+        ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
+    }
+
+    @Command(
+        name = "drain",
+        desc = "Drain brush, removes liquids within a sphere"
+    )
+    @CommandPermissions("worldedit.brush.drain")
+    public void drainBrush(Player player, LocalSession session,
+                           @Arg(desc = "The radius to drain", def = "5")
+                               double radius,
+                           @Switch(name = 'w', desc = "Also un-waterlog blocks")
+                               boolean waterlogged) throws WorldEditException {
+        worldEdit.checkMaxBrushRadius(radius);
+
+        BrushTool tool = session.forceBrush(
+            player.getItemInHand(HandSide.MAIN_HAND).getType(),
+            new DrainBrush(waterlogged),
+            "worldedit.brush.drain"
+        );
+        tool.setFill(null);
+        tool.setSize(radius);
+
+        player.printInfo(TranslatableComponent.of("worldedit.brush.drain.equip", TextComponent.of((int) radius)));
         ToolCommands.sendUnbindInstruction(player, UNBIND_COMMAND_COMPONENT);
     }
 
