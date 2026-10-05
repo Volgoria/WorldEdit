@@ -62,13 +62,13 @@ import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
 import com.sk89q.worldedit.history.changeset.ChangeSet;
 import com.sk89q.worldedit.internal.edit.ExpressionOperations;
 import com.sk89q.worldedit.internal.edit.LineGenerator;
+import com.sk89q.worldedit.internal.edit.MorphologyOperations;
 import com.sk89q.worldedit.internal.edit.RegionCopyOperations;
 import com.sk89q.worldedit.internal.edit.RegionOperations;
 import com.sk89q.worldedit.internal.edit.ShapeGenerator;
 import com.sk89q.worldedit.internal.edit.TerrainOperations;
 import com.sk89q.worldedit.internal.expression.Expression;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
-import com.sk89q.worldedit.internal.util.BlockVector3Set;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.Vector2;
 import com.sk89q.worldedit.math.Vector3;
@@ -80,7 +80,6 @@ import com.sk89q.worldedit.regions.FlatRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionOperationException;
 import com.sk89q.worldedit.util.Countable;
-import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.util.SideEffectSet;
 import com.sk89q.worldedit.util.TreeGenerator;
 import com.sk89q.worldedit.util.collection.BlockMap;
@@ -96,7 +95,6 @@ import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.generation.TreeType;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1924,75 +1922,7 @@ public class EditSession implements Extent, AutoCloseable {
      * @throws MaxChangedBlocksException thrown if too many blocks are changed
      */
     public int hollowOutRegion(Region region, int thickness, Pattern pattern) throws MaxChangedBlocksException {
-        int affected = 0;
-
-        final BlockVector3Set outside = new BlockVector3Set();
-
-        final BlockVector3 min = region.getMinimumPoint();
-        final BlockVector3 max = region.getMaximumPoint();
-
-        final int minX = min.x();
-        final int minY = min.y();
-        final int minZ = min.z();
-        final int maxX = max.x();
-        final int maxY = max.y();
-        final int maxZ = max.z();
-
-        for (int x = minX; x <= maxX; ++x) {
-            for (int y = minY; y <= maxY; ++y) {
-                recurseHollow(region, BlockVector3.at(x, y, minZ), outside);
-                recurseHollow(region, BlockVector3.at(x, y, maxZ), outside);
-            }
-        }
-
-        for (int y = minY; y <= maxY; ++y) {
-            for (int z = minZ; z <= maxZ; ++z) {
-                recurseHollow(region, BlockVector3.at(minX, y, z), outside);
-                recurseHollow(region, BlockVector3.at(maxX, y, z), outside);
-            }
-        }
-
-        for (int z = minZ; z <= maxZ; ++z) {
-            for (int x = minX; x <= maxX; ++x) {
-                recurseHollow(region, BlockVector3.at(x, minY, z), outside);
-                recurseHollow(region, BlockVector3.at(x, maxY, z), outside);
-            }
-        }
-
-        final List<BlockVector3> newOutside = new ArrayList<>();
-        for (int i = 1; i < thickness; ++i) {
-            outer: for (BlockVector3 position : region) {
-                for (BlockVector3 recurseDirection : recurseDirections) {
-                    BlockVector3 neighbor = position.add(recurseDirection);
-
-                    if (outside.contains(neighbor)) {
-                        newOutside.add(position);
-                        continue outer;
-                    }
-                }
-            }
-
-            for (BlockVector3 position : newOutside) {
-                outside.add(position);
-            }
-            newOutside.clear();
-        }
-
-        outer: for (BlockVector3 position : region) {
-            for (BlockVector3 recurseDirection : recurseDirections) {
-                BlockVector3 neighbor = position.add(recurseDirection);
-
-                if (outside.contains(neighbor)) {
-                    continue outer;
-                }
-            }
-
-            if (setBlock(position, pattern.applyBlock(position))) {
-                ++affected;
-            }
-        }
-
-        return affected;
+        return MorphologyOperations.hollowOutRegion(this, region, thickness, pattern);
     }
 
     /**
@@ -2051,36 +1981,6 @@ public class EditSession implements Extent, AutoCloseable {
         return LineGenerator.drawSpline(this, pattern, nodevectors, tension, bias, continuity, quality, radius, filled);
     }
 
-    private void recurseHollow(Region region, BlockVector3 origin, BlockVector3Set outside) {
-        var queue = new ArrayDeque<BlockVector3>();
-        queue.addLast(origin);
-
-        while (!queue.isEmpty()) {
-            final BlockVector3 current = queue.removeFirst();
-            // Only non-solid blocks are ever added, so a known position needs no lookup
-            if (outside.contains(current)) {
-                continue;
-            }
-            final BlockState block = getBlock(current);
-            if (block.getBlockType().getMaterial().isSolid()) {
-                continue;
-            }
-
-            outside.add(current);
-
-            if (!region.contains(current)) {
-                continue;
-            }
-
-            for (BlockVector3 recurseDirection : recurseDirections) {
-                BlockVector3 neighbor = current.add(recurseDirection);
-                if (!outside.contains(neighbor)) {
-                    queue.addLast(neighbor);
-                }
-            }
-        }
-    }
-
     /**
      * Generate a biome shape for the given expression.
      *
@@ -2122,164 +2022,25 @@ public class EditSession implements Extent, AutoCloseable {
         return ExpressionOperations.makeBiomeShape(this, region, transform, biomeType, expressionString, hollow, timeout);
     }
 
+    /**
+     * Erode, then dilate, the blocks in a sphere.
+     *
+     * <p>Eroding replaces a filled block that has at least {@code minErodeFaces} empty (air or
+     * liquid) neighbours with its most common empty neighbour; dilating replaces an empty block
+     * that has at least {@code minDilateFaces} filled neighbours with its most common filled
+     * neighbour.</p>
+     *
+     * @param position the center of the sphere
+     * @param brushSize the radius of the sphere
+     * @param minErodeFaces the minimum number of empty neighbours for a block to erode
+     * @param numErodeIterations the number of erosion passes
+     * @param minDilateFaces the minimum number of filled neighbours for an empty block to be filled
+     * @param numDilateIterations the number of dilation passes
+     * @return number of blocks changed
+     * @throws MaxChangedBlocksException thrown if too many blocks are changed
+     */
     public int morph(BlockVector3 position, double brushSize, int minErodeFaces, int numErodeIterations, int minDilateFaces, int numDilateIterations) throws MaxChangedBlocksException {
-        int ceilBrushSize = (int) Math.ceil(brushSize);
-        int bufferSize = ceilBrushSize * 2 + 3;  // + 1 due to checking the adjacent blocks, plus the 0th block
-        // Store block states in a 3d array so we can do multiple mutations then commit.
-        // Two are required as for each iteration, one is "current" and the other is "new"
-        BlockState[][][] currentBuffer = new BlockState[bufferSize][bufferSize][bufferSize];
-        BlockState[][][] nextBuffer = new BlockState[bufferSize][bufferSize][bufferSize];
-
-        // Simply used for swapping the two
-        BlockState[][][] tmp;
-
-        // Load into buffer
-        for (int x = 0; x < bufferSize; x++) {
-            for (int y = 0; y < bufferSize; y++) {
-                for (int z = 0; z < bufferSize; z++) {
-                    BlockState blockState = getBlock(position.add(x - ceilBrushSize - 1, y - ceilBrushSize - 1, z - ceilBrushSize - 1));
-                    currentBuffer[x][y][z] = blockState;
-                    nextBuffer[x][y][z] = blockState;
-                }
-            }
-        }
-
-        double brushSizeSq = brushSize * brushSize;
-        Map<BlockState, Integer> blockStateFrequency = new HashMap<>();
-        int totalFaces;
-        int highestFreq;
-        BlockState highestState;
-        for (int i = 0; i < numErodeIterations; i++) {
-            for (int x = 0; x <= ceilBrushSize * 2; x++) {
-                for (int y = 0; y <= ceilBrushSize * 2; y++) {
-                    for (int z = 0; z <= ceilBrushSize * 2; z++) {
-                        int realX = x - ceilBrushSize;
-                        int realY = y - ceilBrushSize;
-                        int realZ = z - ceilBrushSize;
-                        if (lengthSq(realX, realY, realZ) > brushSizeSq) {
-                            continue;
-                        }
-
-                        // Copy across changes
-                        nextBuffer[x + 1][y + 1][z + 1] = currentBuffer[x + 1][y + 1][z + 1];
-
-                        BlockState blockState = currentBuffer[x + 1][y + 1][z + 1];
-
-                        if (blockState.getBlockType().getMaterial().isLiquid() || blockState.getBlockType().getMaterial().isAir()) {
-                            continue;
-                        }
-
-                        blockStateFrequency.clear();
-                        totalFaces = 0;
-                        highestFreq = 0;
-                        highestState = blockState;
-                        for (BlockVector3 vec3 : recurseDirections) {
-                            BlockState adj = currentBuffer[x + 1 + vec3.x()][y + 1 + vec3.y()][z + 1 + vec3.z()];
-
-                            if (!adj.getBlockType().getMaterial().isLiquid() && !adj.getBlockType().getMaterial().isAir()) {
-                                continue;
-                            }
-
-                            totalFaces++;
-                            int newFreq = blockStateFrequency.getOrDefault(adj, 0) + 1;
-                            blockStateFrequency.put(adj, newFreq);
-
-                            if (newFreq > highestFreq) {
-                                highestFreq = newFreq;
-                                highestState = adj;
-                            }
-                        }
-
-                        if (totalFaces >= minErodeFaces) {
-                            nextBuffer[x + 1][y + 1][z + 1] = highestState;
-                        }
-                    }
-                }
-            }
-            // Swap current and next
-            tmp = currentBuffer;
-            currentBuffer = nextBuffer;
-            nextBuffer = tmp;
-        }
-
-        for (int i = 0; i < numDilateIterations; i++) {
-            for (int x = 0; x <= ceilBrushSize * 2; x++) {
-                for (int y = 0; y <= ceilBrushSize * 2; y++) {
-                    for (int z = 0; z <= ceilBrushSize * 2; z++) {
-                        int realX = x - ceilBrushSize;
-                        int realY = y - ceilBrushSize;
-                        int realZ = z - ceilBrushSize;
-                        if (lengthSq(realX, realY, realZ) > brushSizeSq) {
-                            continue;
-                        }
-
-                        // Copy across changes
-                        nextBuffer[x + 1][y + 1][z + 1] = currentBuffer[x + 1][y + 1][z + 1];
-
-                        BlockState blockState = currentBuffer[x + 1][y + 1][z + 1];
-                        // Needs to be empty
-                        if (!blockState.getBlockType().getMaterial().isLiquid() && !blockState.getBlockType().getMaterial().isAir()) {
-                            continue;
-                        }
-
-                        blockStateFrequency.clear();
-                        totalFaces = 0;
-                        highestFreq = 0;
-                        highestState = blockState;
-                        for (BlockVector3 vec3 : recurseDirections) {
-                            BlockState adj = currentBuffer[x + 1 + vec3.x()][y + 1 + vec3.y()][z + 1 + vec3.z()];
-                            if (adj.getBlockType().getMaterial().isLiquid() || adj.getBlockType().getMaterial().isAir()) {
-                                continue;
-                            }
-
-                            totalFaces++;
-                            int newFreq = blockStateFrequency.getOrDefault(adj, 0) + 1;
-                            blockStateFrequency.put(adj, newFreq);
-
-                            if (newFreq > highestFreq) {
-                                highestFreq = newFreq;
-                                highestState = adj;
-                            }
-                        }
-
-                        if (totalFaces >= minDilateFaces) {
-                            nextBuffer[x + 1][y + 1][z + 1] = highestState;
-                        }
-                    }
-                }
-            }
-            // Swap current and next
-            tmp = currentBuffer;
-            currentBuffer = nextBuffer;
-            nextBuffer = tmp;
-        }
-
-        // Commit to world
-        int changed = 0;
-        for (int x = 0; x < bufferSize; x++) {
-            for (int y = 0; y < bufferSize; y++) {
-                for (int z = 0; z < bufferSize; z++) {
-                    if (setBlock(position.add(x - ceilBrushSize - 1, y - ceilBrushSize - 1, z - ceilBrushSize - 1), currentBuffer[x][y][z])) {
-                        changed++;
-                    }
-                }
-            }
-        }
-
-        return changed;
-    }
-
-    private static final BlockVector3[] recurseDirections = {
-            Direction.NORTH.toBlockVector(),
-            Direction.EAST.toBlockVector(),
-            Direction.SOUTH.toBlockVector(),
-            Direction.WEST.toBlockVector(),
-            Direction.UP.toBlockVector(),
-            Direction.DOWN.toBlockVector(),
-    };
-
-    private static double lengthSq(double x, double y, double z) {
-        return (x * x) + (y * y) + (z * z);
+        return MorphologyOperations.morph(this, position, brushSize, minErodeFaces, numErodeIterations, minDilateFaces, numDilateIterations);
     }
 
 }
