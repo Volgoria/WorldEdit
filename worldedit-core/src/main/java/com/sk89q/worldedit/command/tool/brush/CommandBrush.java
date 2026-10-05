@@ -24,9 +24,11 @@ import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.entity.Player;
+import com.sk89q.worldedit.event.platform.CommandBrushDispatchEvent;
 import com.sk89q.worldedit.event.platform.CommandEvent;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.util.eventbus.EventBus;
 
 import java.util.Arrays;
 import java.util.List;
@@ -45,6 +47,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * (the targeted block), {@code {size}} (the brush size), {@code {world}} and
  * {@code {player}} are replaced. Commands run as the player using the brush,
  * so all the usual permission checks and limits apply to them.</p>
+ *
+ * <p>A {@link CommandBrushDispatchEvent} is posted before each command, so
+ * platforms can apply the rules of their own command pipeline (for example
+ * other plugins blocking or rewriting commands).</p>
  */
 public class CommandBrush implements PlayerBrush {
 
@@ -61,6 +67,8 @@ public class CommandBrush implements PlayerBrush {
 
     private final List<String> commands;
     private final BiConsumer<Player, String> dispatcher;
+    @Nullable
+    private final EventBus eventBus;
 
     /**
      * Create a new command brush that dispatches commands to WorldEdit.
@@ -78,12 +86,25 @@ public class CommandBrush implements PlayerBrush {
      * @param dispatcher runs a command, starting with {@code /}, as the given player
      */
     public CommandBrush(String commands, BiConsumer<Player, String> dispatcher) {
+        this(commands, dispatcher, null);
+    }
+
+    /**
+     * Create a new command brush.
+     *
+     * @param commands the commands, separated with {@code ;}
+     * @param dispatcher runs a command, starting with {@code /}, as the given player
+     * @param eventBus the bus to post {@link CommandBrushDispatchEvent}s on, or
+     *     {@code null} for WorldEdit's
+     */
+    public CommandBrush(String commands, BiConsumer<Player, String> dispatcher, @Nullable EventBus eventBus) {
         checkNotNull(commands);
         checkNotNull(dispatcher);
         this.commands = parseCommands(commands);
         checkArgument(!this.commands.isEmpty(), "at least one command is required");
         checkArgument(this.commands.size() <= MAX_COMMANDS, "at most " + MAX_COMMANDS + " commands are allowed");
         this.dispatcher = dispatcher;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -143,8 +164,14 @@ public class CommandBrush implements PlayerBrush {
         String worldName = player.getWorld().getName();
         RUNNING.set(true);
         try {
+            EventBus bus = eventBus != null ? eventBus : WorldEdit.getInstance().getEventBus();
             for (String command : commands) {
-                dispatcher.accept(player, expand(command, position, size, worldName, player.getName()));
+                CommandBrushDispatchEvent event = new CommandBrushDispatchEvent(player,
+                    expand(command, position, size, worldName, player.getName()));
+                bus.post(event);
+                if (!event.isCancelled()) {
+                    dispatcher.accept(player, event.getCommand());
+                }
             }
         } finally {
             RUNNING.set(false);

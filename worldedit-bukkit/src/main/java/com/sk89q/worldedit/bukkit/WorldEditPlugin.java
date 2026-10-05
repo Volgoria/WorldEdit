@@ -114,6 +114,7 @@ public class WorldEditPlugin extends JavaPlugin implements TabCompleter {
     private BukkitServerInterface platform;
     private BukkitConfiguration config;
     private WorldEditGui gui;
+    private CommandBrushPreprocessListener commandBrushListener;
 
     @Override
     public void onLoad() {
@@ -161,6 +162,9 @@ public class WorldEditPlugin extends JavaPlugin implements TabCompleter {
         getServer().getPluginManager().registerEvents(new WorldEditListener(this), this);
         // In-game menus (/wegui)
         gui = WorldEditGui.enable(this);
+        // Command brushes go through PlayerCommandPreprocessEvent like typed commands
+        commandBrushListener = new CommandBrushPreprocessListener(getServer().getPluginManager());
+        WorldEdit.getInstance().getEventBus().register(commandBrushListener);
         // register async tab complete, if available
         if (PaperLib.isPaper()) {
             getServer().getPluginManager().registerEvents(new AsyncTabCompleteListener(), this);
@@ -313,6 +317,10 @@ public class WorldEditPlugin extends JavaPlugin implements TabCompleter {
         if (gui != null) {
             gui.disable();
             gui = null;
+        }
+        if (commandBrushListener != null) {
+            WorldEdit.getInstance().getEventBus().unregister(commandBrushListener);
+            commandBrushListener = null;
         }
         WorldEdit worldEdit = WorldEdit.getInstance();
         worldEdit.getSessionManager().unload();

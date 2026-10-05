@@ -227,6 +227,13 @@ Mettez les commandes entre guillemets si elles contiennent des options (`-h`...)
 est ajouté s'il manque. Seules les commandes WorldEdit sont exécutées (les commandes d'autres plugins
 ne passent pas par ce mécanisme).
 
+Sur Bukkit/Paper/Folia, chaque commande passe d'abord par l'événement `PlayerCommandPreprocessEvent`,
+comme si le joueur l'avait tapée : les plugins qui bloquent des commandes (drapeaux de région
+interdisant `//set`...) ou les journalisent s'appliquent aussi à la brosse. Une commande annulée par
+un autre plugin n'est pas exécutée ; une commande réécrite est exécutée sous sa nouvelle forme (via
+WorldEdit). Pour les autres plateformes, l'événement WorldEdit `CommandBrushDispatchEvent` permet le
+même contrôle.
+
 ```
 /brush command -s 3 "//pos1 {x},{y},{z}; //pos2 {x},{y},{z}; //outset {size}"
 /brush cmd -s 4 "//sphere -h glass {size}"

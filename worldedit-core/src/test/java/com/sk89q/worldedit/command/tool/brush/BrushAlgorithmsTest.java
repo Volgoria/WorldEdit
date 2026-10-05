@@ -25,6 +25,7 @@ import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.entity.Entity;
 import com.sk89q.worldedit.entity.Player;
+import com.sk89q.worldedit.event.platform.CommandBrushDispatchEvent;
 import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
@@ -36,6 +37,8 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.util.Location;
+import com.sk89q.worldedit.util.eventbus.EventBus;
+import com.sk89q.worldedit.util.eventbus.Subscribe;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.block.BaseBlock;
@@ -64,6 +67,7 @@ import javax.annotation.Nullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -679,6 +683,48 @@ class BrushAlgorithmsTest extends BaseWorldEditTest {
 
         assertEquals(List.of("//sphere stone 3", "//pos1 5,6,7"), ran);
         verifyNoInteractions(editSession);
+    }
+
+    /**
+     * Cancels {@code //b} and rewrites {@code //a} to {@code //c}, like a platform command blocker would.
+     */
+    public static final class CommandBlocker {
+        @Subscribe
+        public void onDispatch(CommandBrushDispatchEvent event) {
+            if (event.getCommand().equals("//b 7")) {
+                event.setCancelled(true);
+            } else if (event.getCommand().equals("//a")) {
+                event.setCommand("//c");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("command brush lets platforms cancel or rewrite each command")
+    void commandBrushPostsDispatchEvents() throws Exception {
+        Player player = mock(Player.class);
+        World world = mock(World.class);
+        when(world.getName()).thenReturn("world");
+        when(player.getWorld()).thenReturn(world);
+        when(player.getName()).thenReturn("Steve");
+        EventBus bus = new EventBus();
+        List<String> seen = new ArrayList<>();
+        bus.register(new Object() {
+            @Subscribe
+            public void onDispatch(CommandBrushDispatchEvent event) {
+                seen.add(event.getCommand());
+                assertSame(player, event.getPlayer());
+            }
+        });
+        bus.register(new CommandBlocker());
+
+        List<String> ran = new ArrayList<>();
+        CommandBrush brush = new CommandBrush("//a; //b {x}; //d", (_, command) -> ran.add(command), bus);
+        brush.build(player, mock(LocalSession.class), mock(EditSession.class), BlockVector3.at(7, 0, 0), null, 1);
+
+        assertEquals(List.of("//a", "//b 7", "//d"), seen);
+        assertEquals(List.of("//c", "//d"), ran);
+        assertThrows(IllegalArgumentException.class, () -> new CommandBrushDispatchEvent(player, "set stone"));
     }
 
     @Test
