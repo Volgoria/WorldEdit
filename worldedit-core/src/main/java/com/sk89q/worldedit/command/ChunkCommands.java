@@ -31,12 +31,11 @@ import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.internal.anvil.ChunkDeleter;
 import com.sk89q.worldedit.internal.anvil.ChunkDeletionInfo;
+import com.sk89q.worldedit.internal.command.ChunkListPaginationBox;
 import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.Location;
-import com.sk89q.worldedit.util.formatting.component.PaginationBox;
-import com.sk89q.worldedit.util.formatting.text.Component;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.util.formatting.text.event.ClickEvent;
@@ -54,7 +53,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -176,29 +174,5 @@ public class ChunkCommands {
         actor.print(TextComponent.of("You can mark more chunks for deletion, or to stop now, run: ", TextColor.LIGHT_PURPLE)
                 .append(TextComponent.of("/stop", TextColor.AQUA)
                         .clickEvent(ClickEvent.of(ClickEvent.Action.SUGGEST_COMMAND, "/stop"))));
-    }
-
-    private static class ChunkListPaginationBox extends PaginationBox {
-        //private final Region region;
-        private final List<BlockVector2> chunks;
-
-        ChunkListPaginationBox(Region region) {
-            super("Selected Chunks", "/listchunks -p %page%");
-            // TODO make efficient/streamable/calculable implementations of this
-            // for most region types, so we can just store the region and random-access get one page of chunks
-            // (this is non-trivial for some types of selections...)
-            //this.region = region.clone();
-            this.chunks = new ArrayList<>(region.getChunks());
-        }
-
-        @Override
-        public Component getComponent(int number) {
-            return TextComponent.of(chunks.get(number).toString());
-        }
-
-        @Override
-        public int getComponentsSize() {
-            return chunks.size();
-        }
     }
 }

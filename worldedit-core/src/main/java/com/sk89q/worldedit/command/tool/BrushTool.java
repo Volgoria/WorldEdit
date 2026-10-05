@@ -32,7 +32,9 @@ import com.sk89q.worldedit.extent.inventory.BlockBag;
 import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.function.mask.MaskIntersection;
 import com.sk89q.worldedit.function.pattern.Pattern;
+import com.sk89q.worldedit.internal.expression.ExpressionException;
 import com.sk89q.worldedit.util.Location;
+import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
 import javax.annotation.Nullable;
@@ -222,6 +224,8 @@ public class BrushTool implements TraceTool {
                 brush.build(editSession, target.toVector().toBlockPoint(), material, size);
             } catch (MaxChangedBlocksException _) {
                 player.printError(TranslatableComponent.of("worldedit.tool.max-block-changes"));
+            } catch (ExpressionException e) {
+                player.printError(TextComponent.of(String.valueOf(e.getMessage())));
             } finally {
                 session.remember(editSession);
             }

@@ -158,16 +158,18 @@ public class Deform implements Contextual<Operation> {
         Expression expression,
         int timeout
     ) implements Operation {
+        /**
+         * {@inheritDoc}
+         *
+         * @throws ExpressionException if the expression fails to evaluate (for example, on timeout).
+         *     It is propagated unwrapped so that callers can report its message to the user.
+         */
         @Override
         public Operation resume(RunContext run) throws WorldEditException {
-            try {
-                // TODO: Move deformation code
-                final EditSession editSession = (EditSession) destination;
-                editSession.deformRegion(region, transform, expression, timeout, editSession.getWorld(), transform);
-                return null;
-            } catch (ExpressionException e) {
-                throw new RuntimeException("Failed to execute expression", e); // TODO: Better exception to throw here?
-            }
+            // TODO: Move deformation code
+            final EditSession editSession = (EditSession) destination;
+            editSession.deformRegion(region, transform, expression, timeout, editSession.getWorld(), transform);
+            return null;
         }
 
         @Override
