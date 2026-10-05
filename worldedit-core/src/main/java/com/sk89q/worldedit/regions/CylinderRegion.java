@@ -168,14 +168,29 @@ public class CylinderRegion extends AbstractRegion implements FlatRegion {
         maxY = y;
     }
 
+    /**
+     * Gets the largest horizontal block offsets from the center that
+     * {@link #contains(BlockVector3)} can accept.
+     *
+     * <p>{@code contains} accepts an offset of up to the stored radius, which
+     * is the user-facing radius plus 0.5, so the bounds must reach
+     * {@code floor(radius + 0.5)} on both sides of the center. For integer
+     * radii this is exactly the radius.</p>
+     *
+     * @return the horizontal extent on each side of the center
+     */
+    private BlockVector2 getHorizontalExtent() {
+        return BlockVector2.at(Math.floor(radius.x()), Math.floor(radius.z()));
+    }
+
     @Override
     public BlockVector3 getMinimumPoint() {
-        return center.toVector2().subtract(getRadius()).toVector3(minY).toBlockPoint();
+        return center.subtract(getHorizontalExtent()).toBlockVector3(minY);
     }
 
     @Override
     public BlockVector3 getMaximumPoint() {
-        return center.toVector2().add(getRadius()).toVector3(maxY).toBlockPoint();
+        return center.add(getHorizontalExtent()).toBlockVector3(maxY);
     }
 
     @Override
@@ -202,7 +217,7 @@ public class CylinderRegion extends AbstractRegion implements FlatRegion {
 
     @Override
     public int getWidth() {
-        return (int) (2 * radius.x());
+        return 2 * getHorizontalExtent().x() + 1;
     }
 
     @Override
@@ -212,7 +227,7 @@ public class CylinderRegion extends AbstractRegion implements FlatRegion {
 
     @Override
     public int getLength() {
-        return (int) (2 * radius.z());
+        return 2 * getHorizontalExtent().z() + 1;
     }
 
     private BlockVector2 calculateDiff2D(BlockVector3... changes) throws RegionOperationException {

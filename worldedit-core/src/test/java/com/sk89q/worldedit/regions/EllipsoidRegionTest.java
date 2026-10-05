@@ -177,4 +177,74 @@ public class EllipsoidRegionTest extends BaseWorldEditTest {
         EllipsoidRegion inner = new EllipsoidRegion(BlockVector3.at(8, 0, 8), Vector3.at(3, 3, 3));
         assertEquals(Set.of(BlockVector2.at(0, 0)), inner.getChunks());
     }
+
+    private static Set<BlockVector3> scanContains(Region region, BlockVector3 center, int margin) {
+        Set<BlockVector3> result = new HashSet<>();
+        for (int x = center.x() - margin; x <= center.x() + margin; x++) {
+            for (int y = center.y() - margin; y <= center.y() + margin; y++) {
+                for (int z = center.z() - margin; z <= center.z() + margin; z++) {
+                    BlockVector3 pos = BlockVector3.at(x, y, z);
+                    if (region.contains(pos)) {
+                        result.add(pos);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "0, 0, 0, 2.7, 2.7, 2.7",
+        "0, 0, 0, 2.3, 2.3, 2.3",
+        "0, 0, 0, 2.5, 2.5, 2.5",
+        "0, 0, 0, 0.4, 0.6, 0.5",
+        "5, 64, -5, 3.2, 1.5, 4.9",
+        "-11, -30, 17, 6.75, 2.1, 0.99",
+    })
+    @DisplayName("with fractional radii, iterates exactly the positions contains accepts, symmetrically")
+    void fractionalRadiiIterationMatchesContains(int cx, int cy, int cz, double rx, double ry, double rz) {
+        BlockVector3 center = BlockVector3.at(cx, cy, cz);
+        EllipsoidRegion region = new EllipsoidRegion(center, Vector3.at(rx, ry, rz));
+        Set<BlockVector3> iterated = new HashSet<>();
+        for (BlockVector3 pos : region) {
+            assertTrue(iterated.add(pos), () -> "duplicate position " + pos);
+        }
+        int margin = (int) Math.ceil(Math.max(rx, Math.max(ry, rz))) + 3;
+        Set<BlockVector3> expected = scanContains(region, center, margin);
+        assertEquals(expected, iterated);
+        for (BlockVector3 pos : iterated) {
+            BlockVector3 mirrored = center.multiply(2).subtract(pos);
+            assertTrue(iterated.contains(mirrored), () -> "not symmetric: " + pos + " vs " + mirrored);
+        }
+        // the bounds are tight and symmetric around the center
+        BlockVector3 min = region.getMinimumPoint();
+        BlockVector3 max = region.getMaximumPoint();
+        assertEquals(center.subtract(min), max.subtract(center));
+        assertEquals(min, iterated.stream().reduce(BlockVector3::getMinimum).orElseThrow());
+        assertEquals(max, iterated.stream().reduce(BlockVector3::getMaximum).orElseThrow());
+        assertEquals(max.x() - min.x() + 1, region.getWidth());
+        assertEquals(max.y() - min.y() + 1, region.getHeight());
+        assertEquals(max.z() - min.z() + 1, region.getLength());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "0, 0, 0, 0, 0, 0",
+        "0, 0, 0, 1, 2, 3",
+        "7, -64, 3, 5, 5, 5",
+        "-100, 300, 42, 12, 1, 9",
+    })
+    @DisplayName("with integer radii, keeps the historical bounds of center +/- radius")
+    void integerRadiiKeepHistoricalBounds(int cx, int cy, int cz, int rx, int ry, int rz) {
+        BlockVector3 center = BlockVector3.at(cx, cy, cz);
+        Vector3 radius = Vector3.at(rx, ry, rz);
+        EllipsoidRegion region = new EllipsoidRegion(center, radius);
+        // the previous implementation floored center -/+ radius
+        assertEquals(center.toVector3().subtract(radius).toBlockPoint(), region.getMinimumPoint());
+        assertEquals(center.toVector3().add(radius).toBlockPoint(), region.getMaximumPoint());
+        assertEquals(2 * rx + 1, region.getWidth());
+        assertEquals(2 * ry + 1, region.getHeight());
+        assertEquals(2 * rz + 1, region.getLength());
+    }
 }

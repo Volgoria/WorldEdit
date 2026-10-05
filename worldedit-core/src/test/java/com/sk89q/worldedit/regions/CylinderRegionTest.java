@@ -32,6 +32,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -217,5 +218,74 @@ public class CylinderRegionTest extends BaseWorldEditTest {
         assertEquals((int) Math.ceil(Math.PI * Math.hypot(10.5, 10.5)), points.size());
         // a limit caps the number of points at one less than the limit
         assertEquals(15, region.polygonize(16).size());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "0, 0, 0, 2.7, 2.7",
+        "0, 0, 0, 2.3, 2.3",
+        "0, 0, 0, 2.5, 2.5",
+        "0, 0, 0, 0.4, 0.6",
+        "5, 64, -5, 3.2, 4.9",
+        "-11, -30, 17, 6.75, 0.99",
+    })
+    @DisplayName("with fractional radii, iterates exactly the positions contains accepts, symmetrically")
+    void fractionalRadiiIterationMatchesContains(int cx, int cy, int cz, double rx, double rz) {
+        BlockVector3 center = BlockVector3.at(cx, cy, cz);
+        CylinderRegion region = new CylinderRegion(center, Vector2.at(rx, rz), cy - 1, cy + 1);
+        Set<BlockVector3> iterated = new HashSet<>();
+        for (BlockVector3 pos : region) {
+            assertTrue(iterated.add(pos), () -> "duplicate position " + pos);
+        }
+        int margin = (int) Math.ceil(Math.max(rx, rz)) + 3;
+        Set<BlockVector3> expected = new HashSet<>();
+        for (int x = cx - margin; x <= cx + margin; x++) {
+            for (int y = cy - margin; y <= cy + margin; y++) {
+                for (int z = cz - margin; z <= cz + margin; z++) {
+                    BlockVector3 pos = BlockVector3.at(x, y, z);
+                    if (region.contains(pos)) {
+                        expected.add(pos);
+                    }
+                }
+            }
+        }
+        assertEquals(expected, iterated);
+        Set<BlockVector2> flat = new HashSet<>();
+        region.asFlatRegion().forEach(flat::add);
+        assertEquals(expected.stream().map(BlockVector3::toBlockVector2).collect(Collectors.toSet()), flat);
+        for (BlockVector3 pos : iterated) {
+            BlockVector3 mirrored = BlockVector3.at(2 * cx - pos.x(), pos.y(), 2 * cz - pos.z());
+            assertTrue(iterated.contains(mirrored), () -> "not symmetric: " + pos + " vs " + mirrored);
+        }
+        // the bounds are tight and symmetric around the center
+        BlockVector3 min = region.getMinimumPoint();
+        BlockVector3 max = region.getMaximumPoint();
+        assertEquals(cx - min.x(), max.x() - cx);
+        assertEquals(cz - min.z(), max.z() - cz);
+        assertEquals(min, iterated.stream().reduce(BlockVector3::getMinimum).orElseThrow());
+        assertEquals(max, iterated.stream().reduce(BlockVector3::getMaximum).orElseThrow());
+        assertEquals(max.x() - min.x() + 1, region.getWidth());
+        assertEquals(max.z() - min.z() + 1, region.getLength());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "0, 0, 0, 0, 0",
+        "0, 0, 0, 1, 2",
+        "7, -64, 3, 5, 5",
+        "-100, 300, 42, 12, 1",
+    })
+    @DisplayName("with integer radii, keeps the historical bounds of center +/- radius")
+    void integerRadiiKeepHistoricalBounds(int cx, int cy, int cz, int rx, int rz) {
+        BlockVector3 center = BlockVector3.at(cx, cy, cz);
+        Vector2 radius = Vector2.at(rx, rz);
+        CylinderRegion region = new CylinderRegion(center, radius, cy - 2, cy + 2);
+        // the previous implementation floored center -/+ radius
+        assertEquals(center.toBlockVector2().toVector2().subtract(radius).toVector3(cy - 2).toBlockPoint(),
+            region.getMinimumPoint());
+        assertEquals(center.toBlockVector2().toVector2().add(radius).toVector3(cy + 2).toBlockPoint(),
+            region.getMaximumPoint());
+        assertEquals(2 * rx + 1, region.getWidth());
+        assertEquals(2 * rz + 1, region.getLength());
     }
 }
