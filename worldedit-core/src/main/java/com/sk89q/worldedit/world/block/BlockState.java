@@ -177,13 +177,17 @@ public class BlockState implements BlockStateHolder<BlockState> {
         return equalsFuzzy(blockState);
     }
 
-    private Integer hashCodeCache = null;
+    // Racy single-check idiom (as in String.hashCode): int writes are atomic,
+    // and every thread computes the same value
+    private int hashCodeCache;
 
     @Override
     public int hashCode() {
-        if (hashCodeCache == null) {
-            hashCodeCache = Objects.hash(blockType, values);
+        int hash = hashCodeCache;
+        if (hash == 0) {
+            hash = Objects.hash(blockType, values);
+            hashCodeCache = hash;
         }
-        return hashCodeCache;
+        return hash;
     }
 }

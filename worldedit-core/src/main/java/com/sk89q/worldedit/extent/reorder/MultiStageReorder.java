@@ -38,6 +38,7 @@ import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,7 +156,12 @@ public class MultiStageReorder extends AbstractBufferingExtent implements Reorde
         priorityMap.put(BlockTypes.MOVING_PISTON, PlacementPriority.FINAL);
     }
 
-    private final Map<PlacementPriority, BlockMap<BaseBlock>> stages = new HashMap<>();
+    private final Map<PlacementPriority, BlockMap<BaseBlock>> stages = new EnumMap<>(PlacementPriority.class);
+    /**
+     * Stages in reverse commit order: a position's effective buffered block is the
+     * one in the last stage to be committed.
+     */
+    private final List<BlockMap<BaseBlock>> stagesLastCommittedFirst = new ArrayList<>();
 
     private boolean enabled;
 
@@ -189,7 +195,9 @@ public class MultiStageReorder extends AbstractBufferingExtent implements Reorde
         this.enabled = enabled;
 
         for (PlacementPriority priority : PlacementPriority.values()) {
-            stages.put(priority, BlockMap.createForBaseBlock());
+            BlockMap<BaseBlock> stage = BlockMap.createForBaseBlock();
+            stages.put(priority, stage);
+            stagesLastCommittedFirst.addFirst(stage);
         }
     }
 
@@ -263,7 +271,7 @@ public class MultiStageReorder extends AbstractBufferingExtent implements Reorde
             // Early-exit if we know we're not enabled.
             return null;
         }
-        for (BlockMap<BaseBlock> blocks : stages.values()) {
+        for (BlockMap<BaseBlock> blocks : stagesLastCommittedFirst) {
             BaseBlock baseBlock = blocks.get(position);
             if (baseBlock != null) {
                 return baseBlock;

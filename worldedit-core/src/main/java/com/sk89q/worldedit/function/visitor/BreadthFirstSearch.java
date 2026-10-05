@@ -24,6 +24,7 @@ import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.function.RegionFunction;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.RunContext;
+import com.sk89q.worldedit.internal.util.BlockVector3Set;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.util.formatting.text.Component;
@@ -34,10 +35,8 @@ import com.sk89q.worldedit.util.formatting.text.format.TextColor;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
-import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -56,7 +55,7 @@ public abstract class BreadthFirstSearch implements Operation {
 
     private final RegionFunction function;
     private final Queue<BlockVector3> queue = new ArrayDeque<>();
-    private final Set<BlockVector3> visited = new HashSet<>();
+    private final BlockVector3Set visited = new BlockVector3Set();
     private final List<BlockVector3> directions = new ArrayList<>();
     private int affected = 0;
 
@@ -125,9 +124,8 @@ public abstract class BreadthFirstSearch implements Operation {
      * @param position the position
      */
     public void visit(BlockVector3 position) {
-        if (!visited.contains(position)) {
+        if (visited.add(position)) {
             queue.add(position);
-            visited.add(position);
         }
     }
 
@@ -138,11 +136,8 @@ public abstract class BreadthFirstSearch implements Operation {
      * @param to the block under question
      */
     private void visit(BlockVector3 from, BlockVector3 to) {
-        if (!visited.contains(to)) {
-            visited.add(to);
-            if (isVisitable(from, to)) {
-                queue.add(to);
-            }
+        if (visited.add(to) && isVisitable(from, to)) {
+            queue.add(to);
         }
     }
 

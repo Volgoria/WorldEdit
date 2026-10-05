@@ -65,10 +65,11 @@ public class BlockDistributionCounter implements RegionFunction {
             blk = blk.getBlockType().getDefaultState();
         }
 
-        if (map.containsKey(blk)) {
-            map.get(blk).increment();
+        Countable<BlockState> c = map.get(blk);
+        if (c != null) {
+            c.increment();
         } else {
-            Countable<BlockState> c = new Countable<>(blk, 1);
+            c = new Countable<>(blk, 1);
             map.put(blk, c);
             distribution.add(c);
         }
