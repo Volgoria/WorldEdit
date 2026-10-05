@@ -25,6 +25,7 @@ import com.sk89q.worldedit.entity.Entity;
 import com.sk89q.worldedit.history.change.BiomeChange3D;
 import com.sk89q.worldedit.history.change.BlockChange;
 import com.sk89q.worldedit.history.change.EntityCreate;
+import com.sk89q.worldedit.history.change.EntityMove;
 import com.sk89q.worldedit.history.change.EntityRemove;
 import com.sk89q.worldedit.history.changeset.ChangeSet;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -159,8 +160,12 @@ public class ChangeSetExtent extends AbstractDelegateExtent {
 
         @Override
         public boolean setLocation(Location location) {
-            // TODO Add a changeset for this.
-            return entity.setLocation(location);
+            Location previous = entity.getLocation();
+            boolean success = entity.setLocation(location);
+            if (success) {
+                changeSet.add(new EntityMove(entity, previous, location));
+            }
+            return success;
         }
 
         @Override
