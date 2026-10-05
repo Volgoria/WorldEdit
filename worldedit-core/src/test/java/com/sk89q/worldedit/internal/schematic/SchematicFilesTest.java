@@ -73,6 +73,16 @@ class SchematicFilesTest extends BaseWorldEditTest {
             root.resolve(source).toFile(), target);
     }
 
+    @Test
+    @DisplayName("withExtension replaces the last extension and keeps the folder")
+    void withExtension() {
+        File folder = root.resolve("sub").toFile();
+        assertEquals(new File(folder, "house.mtl"), SchematicFiles.withExtension(new File(folder, "house.obj"), "mtl"));
+        assertEquals(new File(folder, "a.b.mtl"), SchematicFiles.withExtension(new File(folder, "a.b.obj"), "mtl"));
+        assertEquals(new File(folder, "house.mtl"), SchematicFiles.withExtension(new File(folder, "house"), "mtl"));
+        assertEquals(new File(folder, ".hidden.mtl"), SchematicFiles.withExtension(new File(folder, ".hidden"), "mtl"));
+    }
+
     private Path create(String name, String content) throws IOException {
         Path path = root.resolve(name);
         Files.createDirectories(path.getParent());

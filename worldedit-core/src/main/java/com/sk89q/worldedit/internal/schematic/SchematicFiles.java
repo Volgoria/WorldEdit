@@ -63,6 +63,20 @@ public final class SchematicFiles {
     }
 
     /**
+     * Get a file next to the given one, with the same base name and another extension.
+     *
+     * @param file the file
+     * @param extension the new extension, without the dot
+     * @return the sibling file
+     */
+    public static File withExtension(File file, String extension) {
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        String baseName = dot > 0 ? name.substring(0, dot) : name;
+        return new File(file.getParentFile(), baseName + "." + extension);
+    }
+
+    /**
      * Resolve the destination of a rename or copy inside the schematics folder.
      *
      * <p>The destination keeps the extension of the source file (it is appended if

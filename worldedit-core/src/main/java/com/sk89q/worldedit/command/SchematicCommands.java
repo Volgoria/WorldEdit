@@ -41,6 +41,7 @@ import com.sk89q.worldedit.extent.clipboard.io.export.WavefrontObjWriter;
 import com.sk89q.worldedit.extent.clipboard.io.share.ClipboardShareDestination;
 import com.sk89q.worldedit.extent.clipboard.io.share.ClipboardShareMetadata;
 import com.sk89q.worldedit.internal.annotation.SchematicPath;
+import com.sk89q.worldedit.internal.command.exception.ExceptionConverter;
 import com.sk89q.worldedit.internal.schematic.SchematicFiles;
 import com.sk89q.worldedit.internal.schematic.SchematicsManager;
 import com.sk89q.worldedit.internal.util.LogManagerCompat;
@@ -108,6 +109,53 @@ public class SchematicCommands {
         this.worldEdit = worldEdit;
     }
 
+    /** Resolve a schematic to read, from a name relative to the given folder. */
+    private File resolveSchematic(Actor actor, File root, String filename) throws FilenameException {
+        return worldEdit.getSafeOpenFile(actor, root, filename,
+                BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC.getPrimaryFileExtension(),
+                ClipboardFormats.getFileExtensionArray());
+    }
+
+    /** Check that the platform knows its data version, which writing schematics requires. */
+    private boolean checkDataVersion(Actor actor) {
+        if (worldEdit.getPlatformManager().queryCapability(Capability.GAME_HOOKS).getDataVersion() == -1) {
+            actor.printError(TranslatableComponent.of("worldedit.schematic.unsupported-minecraft-version"));
+            return false;
+        }
+        return true;
+    }
+
+    /** Check whether an existing schematic may be replaced; throws if the actor may not delete schematics. */
+    private static boolean checkOverwrite(Actor actor, boolean allowOverwrite) {
+        if (!actor.hasPermission("worldedit.schematic.delete")) {
+            throw new StopExecutionException(TextComponent.of("That schematic already exists!"));
+        }
+        if (!allowOverwrite) {
+            actor.printError(TranslatableComponent.of("worldedit.schematic.save.already-exists"));
+            return false;
+        }
+        return true;
+    }
+
+    private ExceptionConverter exceptionConverter() {
+        return worldEdit.getPlatformManager().getPlatformCommandManager().getExceptionConverter();
+    }
+
+    /** Open a schematic file and read from it with a reader of the given format. */
+    private static <T> T readSchematic(File file, ClipboardFormat format, ReaderAction<T> action) throws IOException {
+        try (Closer closer = Closer.create()) {
+            FileInputStream fis = closer.register(new FileInputStream(file));
+            BufferedInputStream bis = closer.register(new BufferedInputStream(fis));
+            ClipboardReader reader = closer.register(format.getReader(bis));
+            return action.read(reader);
+        }
+    }
+
+    @FunctionalInterface
+    private interface ReaderAction<T> {
+        T read(ClipboardReader reader) throws IOException;
+    }
+
     @Command(
         name = "load",
         desc = "Load a schematic into your clipboard"
@@ -122,9 +170,7 @@ public class SchematicCommands {
         // Schematic.path is relative, so treat it as filename
         String filename = schematic.toString();
         File schematicsRoot = worldEdit.getSchematicsManager().getRoot().toFile();
-        File f = worldEdit.getSafeOpenFile(actor, schematicsRoot, filename,
-                BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC.getPrimaryFileExtension(),
-                ClipboardFormats.getFileExtensionArray());
+        File f = resolveSchematic(actor, schematicsRoot, filename);
 
         if (!f.exists()) {
             actor.printError(TranslatableComponent.of("worldedit.schematic.load.does-not-exist", TextComponent.of(filename)));
@@ -157,7 +203,7 @@ public class SchematicCommands {
                                 .append(TextComponent.of(" loaded. Paste it with ", TextColor.LIGHT_PURPLE))
                                 .append(CodeFormat.wrap("//paste").clickEvent(ClickEvent.of(ClickEvent.Action.SUGGEST_COMMAND, "//paste"))),
                         session::setClipboard)
-                .onFailure("Failed to load schematic", worldEdit.getPlatformManager().getPlatformCommandManager().getExceptionConverter())
+                .onFailure("Failed to load schematic", exceptionConverter())
                 .buildAndExecNoReturnValue(worldEdit.getExecutorService());
     }
 
@@ -173,8 +219,7 @@ public class SchematicCommands {
                          ClipboardFormat format,
                      @Switch(name = 'f', desc = "Overwrite an existing file.")
                          boolean allowOverwrite) throws WorldEditException {
-        if (worldEdit.getPlatformManager().queryCapability(Capability.GAME_HOOKS).getDataVersion() == -1) {
-            actor.printError(TranslatableComponent.of("worldedit.schematic.unsupported-minecraft-version"));
+        if (!checkDataVersion(actor)) {
             return;
         }
 
@@ -190,14 +235,8 @@ public class SchematicCommands {
         File f = worldEdit.getSafeSaveFile(actor, dir, filename, format.getPrimaryFileExtension());
 
         boolean overwrite = f.exists();
-        if (overwrite) {
-            if (!actor.hasPermission("worldedit.schematic.delete")) {
-                throw new StopExecutionException(TextComponent.of("That schematic already exists!"));
-            }
-            if (!allowOverwrite) {
-                actor.printError(TranslatableComponent.of("worldedit.schematic.save.already-exists"));
-                return;
-            }
+        if (overwrite && !checkOverwrite(actor, allowOverwrite)) {
+            return;
         }
 
         // Create parent directories
@@ -217,7 +256,7 @@ public class SchematicCommands {
                 .setDelayMessage(TranslatableComponent.of("worldedit.schematic.save.saving"))
                 .setWorkingMessage(TranslatableComponent.of("worldedit.schematic.save.still-saving"))
                 .onSuccess(filename + " saved" + (overwrite ? " (overwriting previous file)." : "."), null)
-                .onFailure("Failed to save schematic", worldEdit.getPlatformManager().getPlatformCommandManager().getExceptionConverter())
+                .onFailure("Failed to save schematic", exceptionConverter())
                 .buildAndExecNoReturnValue(worldEdit.getExecutorService());
     }
 
@@ -233,8 +272,7 @@ public class SchematicCommands {
                           ClipboardShareDestination destination,
                       @Arg(desc = "Format name", def = "")
                           ClipboardFormat format) throws WorldEditException {
-        if (worldEdit.getPlatformManager().queryCapability(Capability.GAME_HOOKS).getDataVersion() == -1) {
-            actor.printError(TranslatableComponent.of("worldedit.schematic.unsupported-minecraft-version"));
+        if (!checkDataVersion(actor)) {
             return;
         }
 
@@ -259,7 +297,7 @@ public class SchematicCommands {
             .setDelayMessage(TranslatableComponent.of("worldedit.schematic.save.saving"))
             .setWorkingMessage(TranslatableComponent.of("worldedit.schematic.save.still-saving"))
             .onSuccess("Shared", consumer -> consumer.accept(actor))
-            .onFailure("Failed to share schematic", worldEdit.getPlatformManager().getPlatformCommandManager().getExceptionConverter())
+            .onFailure("Failed to share schematic", exceptionConverter())
             .buildAndExecNoReturnValue(worldEdit.getExecutorService());
     }
 
@@ -311,9 +349,7 @@ public class SchematicCommands {
                          Path schematic) throws WorldEditException {
         String filename = schematic.toString();
         File schematicsRoot = worldEdit.getSchematicsManager().getRoot().toFile();
-        File f = worldEdit.getSafeOpenFile(actor, schematicsRoot, filename,
-                BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC.getPrimaryFileExtension(),
-                ClipboardFormats.getFileExtensionArray());
+        File f = resolveSchematic(actor, schematicsRoot, filename);
 
         if (!f.exists()) {
             actor.printError(TranslatableComponent.of("worldedit.schematic.load.does-not-exist", TextComponent.of(filename)));
@@ -369,9 +405,7 @@ public class SchematicCommands {
 
         // Schematic.path is relative, so treat it as filename
         String filename = schematic.toString();
-        File source = worldEdit.getSafeOpenFile(actor, dir, filename,
-                BuiltInClipboardFormat.SPONGE_V3_SCHEMATIC.getPrimaryFileExtension(),
-                ClipboardFormats.getFileExtensionArray());
+        File source = resolveSchematic(actor, dir, filename);
         if (!source.isFile()) {
             actor.printError(TranslatableComponent.of("worldedit.schematic.load.does-not-exist", TextComponent.of(filename)));
             return;
@@ -386,14 +420,8 @@ public class SchematicCommands {
         }
 
         boolean overwrite = target.exists();
-        if (overwrite) {
-            if (!actor.hasPermission("worldedit.schematic.delete")) {
-                throw new StopExecutionException(TextComponent.of("That schematic already exists!"));
-            }
-            if (!allowOverwrite) {
-                actor.printError(TranslatableComponent.of("worldedit.schematic.save.already-exists"));
-                return;
-            }
+        if (overwrite && !checkOverwrite(actor, allowOverwrite)) {
+            return;
         }
 
         try {
@@ -510,15 +538,9 @@ public class SchematicCommands {
 
         @Override
         public ClipboardHolder call() throws Exception {
-            try (Closer closer = Closer.create()) {
-                FileInputStream fis = closer.register(new FileInputStream(file));
-                BufferedInputStream bis = closer.register(new BufferedInputStream(fis));
-                ClipboardReader reader = closer.register(format.getReader(bis));
-
-                Clipboard clipboard = reader.read();
-                LOGGER.info(actor.getName() + " loaded " + file.getCanonicalPath());
-                return new ClipboardHolder(clipboard);
-            }
+            Clipboard clipboard = readSchematic(file, format, ClipboardReader::read);
+            LOGGER.info(actor.getName() + " loaded " + file.getCanonicalPath());
+            return new ClipboardHolder(clipboard);
         }
     }
 
@@ -539,15 +561,12 @@ public class SchematicCommands {
                         .color(TextColor.RED);
             }
 
-            OptionalInt dataVersion;
-            Clipboard clipboard;
-            try (Closer closer = Closer.create()) {
-                FileInputStream fis = closer.register(new FileInputStream(file));
-                BufferedInputStream bis = closer.register(new BufferedInputStream(fis));
-                ClipboardReader reader = closer.register(format.getReader(bis));
-                clipboard = reader.read();
-                dataVersion = reader.getDataVersion();
+            record Read(Clipboard clipboard, OptionalInt dataVersion) {
             }
+
+            Read read = readSchematic(file, format, reader -> new Read(reader.read(), reader.getDataVersion()));
+            Clipboard clipboard = read.clipboard();
+            OptionalInt dataVersion = read.dataVersion();
             SchematicFiles.Summary summary = SchematicFiles.summarize(clipboard);
             BlockVector3 size = summary.size();
             BlockVector3 offset = clipboard.getMinimumPoint().subtract(clipboard.getOrigin());
@@ -636,9 +655,7 @@ public class SchematicCommands {
         void configureWriter(ClipboardWriter writer) throws IOException {
             if (writer instanceof WavefrontObjWriter objWriter) {
                 // Write the material library next to the model
-                String name = file.getName();
-                int dot = name.lastIndexOf('.');
-                materialFile = new File(file.getParentFile(), (dot > 0 ? name.substring(0, dot) : name) + ".mtl");
+                materialFile = SchematicFiles.withExtension(file, "mtl");
                 objWriter.setMaterialLibrary(materialFile.getName(), new FileOutputStream(materialFile));
             }
         }
