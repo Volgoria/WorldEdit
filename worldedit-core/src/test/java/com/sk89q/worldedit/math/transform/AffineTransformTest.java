@@ -21,7 +21,6 @@ package com.sk89q.worldedit.math.transform;
 
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.Vector3;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -243,8 +242,6 @@ public class AffineTransformTest {
 
     @Test
     @SuppressWarnings("deprecation")
-    @Disabled("Bug: AffineTransform.indexCoeffs treats indices 3, 6 and 9 as the translation holes instead of 3, 7 "
-        + "and 11, scrambling 9-element arrays. Fix: holes where destIndex % 4 == 3, source index destIndex - destIndex / 4.")
     void deprecatedNineElementArrayConstructor() {
         double[] nine = {1, 2, 3, 5, 6, 7, 9, 10, 11};
         assertArrayEquals(
