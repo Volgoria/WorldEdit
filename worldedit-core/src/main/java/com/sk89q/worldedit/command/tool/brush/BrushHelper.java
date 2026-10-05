@@ -88,7 +88,8 @@ final class BrushHelper {
      * @param visitor the visitor
      */
     static void forEachColumn(BlockVector3 center, double size, ColumnVisitor visitor) {
-        int radius = (int) Math.floor(size);
+        // Every column within size + 0.5, e.g. 3 blocks away for a size of 2.6
+        int radius = (int) Math.floor(size + 0.5);
         double radiusSq = (size + 0.5) * (size + 0.5);
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {

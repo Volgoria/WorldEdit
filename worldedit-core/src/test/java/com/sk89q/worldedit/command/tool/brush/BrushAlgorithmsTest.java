@@ -38,6 +38,7 @@ import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.util.eventbus.EventBus;
+import com.sk89q.worldedit.util.eventbus.EventHandler;
 import com.sk89q.worldedit.util.eventbus.Subscribe;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.world.World;
@@ -502,6 +503,25 @@ class BrushAlgorithmsTest extends BaseWorldEditTest {
     }
 
     @Test
+    @DisplayName("column discs include every column within size + 0.5, also for fractional sizes")
+    void columnDiscMatchesRoundedRadius() {
+        for (double size : new double[] {0, 1, 2.4, 2.6, 3, 5.5}) {
+            Set<BlockVector3> columns = new HashSet<>();
+            BrushHelper.forEachColumn(BlockVector3.ZERO, size, (x, z) -> columns.add(BlockVector3.at(x, 0, z)));
+            Set<BlockVector3> expected = new HashSet<>();
+            double limit = (size + 0.5) * (size + 0.5);
+            for (int x = -10; x <= 10; x++) {
+                for (int z = -10; z <= 10; z++) {
+                    if (x * x + z * z <= limit) {
+                        expected.add(BlockVector3.at(x, 0, z));
+                    }
+                }
+            }
+            assertEquals(expected, columns, "size " + size);
+        }
+    }
+
+    @Test
     @DisplayName("shatter cracks solid blocks along fragment borders")
     void shatterCracksAlongBorders() throws Exception {
         TestExtent extent = new TestExtent();
@@ -710,7 +730,8 @@ class BrushAlgorithmsTest extends BaseWorldEditTest {
         EventBus bus = new EventBus();
         List<String> seen = new ArrayList<>();
         bus.register(new Object() {
-            @Subscribe
+            // Handlers of one priority run in no defined order: see the commands before they are rewritten
+            @Subscribe(priority = EventHandler.Priority.VERY_EARLY)
             public void onDispatch(CommandBrushDispatchEvent event) {
                 seen.add(event.getCommand());
                 assertSame(player, event.getPlayer());
