@@ -1007,14 +1007,24 @@ public class LocalSession {
         }
 
         if (selector instanceof CUIRegion tempSel) {
-            if (tempSel.getProtocolVersion() > cuiVersion) {
-                actor.dispatchCUIEvent(new SelectionShapeEvent(tempSel.getLegacyTypeID()));
-                tempSel.describeLegacyCUI(this, actor);
-            } else {
-                actor.dispatchCUIEvent(new SelectionShapeEvent(tempSel.getTypeID()));
-                tempSel.describeCUI(this, actor);
-            }
+            boolean legacy = usesLegacyCUI(tempSel);
+            actor.dispatchCUIEvent(new SelectionShapeEvent(legacy ? tempSel.getLegacyTypeID() : tempSel.getTypeID()));
+            describeSelection(tempSel, legacy, actor);
+        }
+    }
 
+    /**
+     * Whether the client's CUI protocol is too old for the region's current description format.
+     */
+    private boolean usesLegacyCUI(CUIRegion region) {
+        return region.getProtocolVersion() > cuiVersion;
+    }
+
+    private void describeSelection(CUIRegion region, boolean legacy, Actor actor) {
+        if (legacy) {
+            region.describeLegacyCUI(this, actor);
+        } else {
+            region.describeCUI(this, actor);
         }
     }
 
@@ -1031,12 +1041,7 @@ public class LocalSession {
         }
 
         if (selector instanceof CUIRegion tempSel) {
-            if (tempSel.getProtocolVersion() > cuiVersion) {
-                tempSel.describeLegacyCUI(this, actor);
-            } else {
-                tempSel.describeCUI(this, actor);
-            }
-
+            describeSelection(tempSel, usesLegacyCUI(tempSel), actor);
         }
     }
 
