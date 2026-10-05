@@ -470,6 +470,8 @@
     "worldedit.script.no-script-engine": "Failed to find an installed script engine.\nPlease see https://worldedit.enginehub.org/en/latest/usage/other/craftscripts/",
     "worldedit.script.failed": "Failed to execute: {0}",
     "worldedit.script.failed-console": "Failed to execute (see console): {0}",
+    "worldedit.script.missing-script-engine": "Failed to find an installed script engine.",
+    "worldedit.script.please-see": "Please see {0}",
 
     "worldedit.operation.affected.biome": "{0} biomes affected",
     "worldedit.operation.affected.block": "{0} blocks affected",
@@ -479,6 +481,7 @@
 
     "worldedit.error.invalid-number": "Number expected; string given.",
     "worldedit.error.invalid-number.matches": "Number expected; string \"{0}\" given.",
+    "worldedit.error.invalid-nbt": "Invalid NBT data in \"{0}\": {1}",
     "worldedit.error.incomplete-region": "Make a region selection first.",
     "worldedit.error.unknown-block": "Block name '{0}' was not recognized.",
     "worldedit.error.unknown-item": "Item name '{0}' was not recognized.",
@@ -616,6 +619,7 @@
     "worldedit.cli.save-failed": "Could not save {0}: {1}. Your changes are NOT saved.",
 
     "worldedit.version.bukkit.unsupported-adapter": "This WorldEdit version does not fully support your version of Bukkit. Block entities (e.g. chests) will be empty, block properties (e.g. rotation) will be missing, and other things may not work. Update WorldEdit to restore this functionality:\n{0}",
+    "worldedit.version.bukkit.unsupported-version": "This WorldEdit version does not support your version of Bukkit. Update WorldEdit:",
     "worldedit.bukkit.no-edit-without-adapter": "Editing on unsupported versions is disabled.",
     "worldedit.bukkit.unsupported-on-folia": "This feature of WorldEdit is currently not supported on Folia."
 }

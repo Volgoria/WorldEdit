@@ -540,11 +540,12 @@ public class GeneralCommands {
         String query = String.join("_", queryBits);
 
         if (!ALLOWED_KEY_CHARACTERS.matcher(query).matches()) {
-            actor.printError(TranslatableComponent.of("worldedit.registry.error.invalid-key"));
+            actor.printError(TranslatableComponent.of("worldedit.registry.error.invalid-key", TextComponent.of(query)));
+            return;
         }
 
         WorldEditAsyncCommandBuilder.createAndSendMessage(actor, new RegistrySearcher(registry, query, page),
-            TranslatableComponent.of("worldedit.registry.searching", TextComponent.of(query)));
+            TranslatableComponent.of("worldedit.registry.searching"));
     }
 
     private static class RegistrySearcher implements Callable<Component> {
