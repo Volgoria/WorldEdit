@@ -49,7 +49,7 @@ public class DataReport implements Report {
 
     @FormatMethod
     public void append(String key, @FormatString String message, Object... values) {
-        checkNotNull(message, "values");
+        checkNotNull(message, "message");
         checkNotNull(values, "values");
         append(key, String.format(message, values));
     }
