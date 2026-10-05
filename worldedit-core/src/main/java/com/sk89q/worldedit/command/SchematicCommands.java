@@ -328,9 +328,18 @@ public class SchematicCommands {
             return;
         }
 
+        Path materialLibrary = SchematicFiles.materialLibraryOf(f.toPath());
         if (!f.delete()) {
             actor.printError(TranslatableComponent.of("worldedit.schematic.delete.failed", TextComponent.of(filename)));
             return;
+        }
+        // An OBJ export is useless without its model, so its material library goes too
+        if (materialLibrary != null) {
+            try {
+                Files.deleteIfExists(materialLibrary);
+            } catch (IOException e) {
+                LOGGER.warn("Failed to delete material library " + materialLibrary, e);
+            }
         }
 
         actor.printInfo(TranslatableComponent.of("worldedit.schematic.delete.deleted", TextComponent.of(filename)));
@@ -427,14 +436,20 @@ public class SchematicCommands {
             return;
         }
 
+        // An OBJ export travels with its material library, which must not replace an
+        // existing file either without the overwrite checks
+        boolean withMaterialLibrary = SchematicFiles.materialLibraryOf(source.toPath()) != null;
+        boolean overwriteMaterialLibrary = withMaterialLibrary
+            && SchematicFiles.withExtension(target, "mtl").exists();
         boolean overwrite = target.exists();
-        if (overwrite && !checkOverwrite(actor, allowOverwrite)) {
+        if ((overwrite || overwriteMaterialLibrary) && !checkOverwrite(actor, allowOverwrite)) {
             return;
         }
 
         try {
-            // Only replace the file that was checked above: one created since then is kept
-            SchematicFiles.transfer(source.toPath(), target.toPath(), move, overwrite);
+            // Only replace the files that were checked above: one created since then is kept
+            SchematicFiles.transferWithMaterialLibrary(source.toPath(), target.toPath(), move,
+                overwrite, overwriteMaterialLibrary);
         } catch (IOException e) {
             LOGGER.warn("Failed to " + mode + " schematic " + source + " to " + target, e);
             actor.printError(TranslatableComponent.of("worldedit.schematic." + mode + ".failed",
@@ -446,7 +461,8 @@ public class SchematicCommands {
         actor.printInfo(TranslatableComponent.of(move ? "worldedit.schematic.rename.renamed" : "worldedit.schematic.copy.copied",
                 TextComponent.of(filename), TextComponent.of(targetName)));
         LOGGER.info(actor.getName() + (move ? " renamed " : " copied ") + source.getAbsolutePath() + " to "
-                + target.getAbsolutePath() + (overwrite ? " (overwriting previous file)" : ""));
+                + target.getAbsolutePath() + (withMaterialLibrary ? " with its material library" : "")
+                + (overwrite || overwriteMaterialLibrary ? " (overwriting previous file)" : ""));
     }
 
     @Command(

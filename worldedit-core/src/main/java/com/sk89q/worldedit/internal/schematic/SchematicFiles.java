@@ -32,8 +32,11 @@ import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.CopyOption;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -86,6 +89,22 @@ public final class SchematicFiles {
      */
     public static boolean writesMaterialLibrary(ClipboardFormat format) {
         return format == BuiltInClipboardFormat.WAVEFRONT_OBJ;
+    }
+
+    /**
+     * Get the {@code .mtl} material library that belongs to a Wavefront OBJ export.
+     *
+     * @param file the schematic file
+     * @return the material library next to the file, or null if the file is not an
+     *     {@code .obj} file or has no material library
+     */
+    @Nullable
+    public static Path materialLibraryOf(Path file) {
+        if (!getExtension(file).equals("obj")) {
+            return null;
+        }
+        Path materialLibrary = withExtension(file.toFile(), "mtl").toPath();
+        return Files.isRegularFile(materialLibrary) ? materialLibrary : null;
     }
 
     /**
@@ -149,6 +168,99 @@ public final class SchematicFiles {
         } else {
             Files.copy(normalizedSource, normalizedDestination, options);
         }
+    }
+
+    /**
+     * Move or copy a schematic file together with its {@code .mtl} material library,
+     * if it is a Wavefront OBJ export that has one.
+     *
+     * <p>The material library gets the base name of the destination, and the
+     * {@code mtllib} reference of the destination model is updated to match. Both
+     * destinations are checked before anything is touched; if the material library
+     * cannot be transferred, the model transfer is undone.</p>
+     *
+     * @param source the source file
+     * @param destination the destination file
+     * @param move true to move, false to copy
+     * @param overwrite whether an existing destination file may be replaced
+     * @param overwriteMaterialLibrary whether an existing destination material library may be replaced
+     * @throws IOException on I/O error, or if a destination exists and may not be replaced,
+     *     or if source and destination are the same file
+     */
+    public static void transferWithMaterialLibrary(Path source, Path destination, boolean move,
+                                                   boolean overwrite, boolean overwriteMaterialLibrary)
+            throws IOException {
+        Path sourceLibrary = materialLibraryOf(source);
+        if (sourceLibrary == null) {
+            transfer(source, destination, move, overwrite);
+            return;
+        }
+        Path destinationLibrary = withExtension(destination.toFile(), "mtl").toPath();
+        if (!overwrite && Files.exists(destination)) {
+            throw new FileAlreadyExistsException(destination.getFileName().toString());
+        }
+        if (!overwriteMaterialLibrary && Files.exists(destinationLibrary)) {
+            throw new FileAlreadyExistsException(destinationLibrary.getFileName().toString());
+        }
+        transfer(source, destination, move, overwrite);
+        try {
+            transfer(sourceLibrary, destinationLibrary, move, overwriteMaterialLibrary);
+        } catch (IOException e) {
+            try {
+                if (move) {
+                    Files.move(destination, source);
+                } else {
+                    Files.delete(destination);
+                }
+            } catch (IOException suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
+        }
+        relinkMaterialLibrary(destination, sourceLibrary.getFileName().toString(),
+            destinationLibrary.getFileName().toString());
+    }
+
+    /**
+     * Point the {@code mtllib} statement of an OBJ file to another material library.
+     *
+     * @param objFile the OBJ file
+     * @param oldName the material library file name currently referenced
+     * @param newName the new material library file name
+     * @throws IOException on I/O error
+     */
+    static void relinkMaterialLibrary(Path objFile, String oldName, String newName) throws IOException {
+        if (oldName.equals(newName)) {
+            return;
+        }
+        // Latin-1 maps every byte to one char, so the rest of the file is copied unchanged
+        String oldLine = latin1("mtllib " + oldName);
+        String newLine = latin1("mtllib " + newName);
+        Path temporary = Files.createTempFile(objFile.toAbsolutePath().getParent(), ".relink", ".tmp");
+        boolean found = false;
+        try {
+            try (BufferedReader reader = Files.newBufferedReader(objFile, StandardCharsets.ISO_8859_1);
+                 BufferedWriter writer = Files.newBufferedWriter(temporary, StandardCharsets.ISO_8859_1)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!found && line.equals(oldLine)) {
+                        line = newLine;
+                        found = true;
+                    }
+                    writer.write(line);
+                    writer.write('\n');
+                }
+            }
+            if (found) {
+                Files.move(temporary, objFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    private static String latin1(String text) {
+        return new String(text.getBytes(StandardCharsets.UTF_8), StandardCharsets.ISO_8859_1);
     }
 
     /**

@@ -571,6 +571,10 @@ Renomme ou déplace une schematic. Le nouveau nom est relatif au dossier des sch
 l'extension** du fichier d'origine (elle est ajoutée si absente ou différente). Écraser un fichier
 existant demande en plus `-f`.
 
+Un export `.obj` est déplacé **avec sa bibliothèque de matériaux** `.mtl`, renommée de la même façon,
+et la ligne `mtllib` du modèle est mise à jour. Si le `.mtl` de destination existe déjà, les mêmes
+règles d'écrasement s'appliquent (`-f`) ; sinon rien n'est modifié.
+
 ```
 /schem rename ferme maisons/ferme_v2
 ```
@@ -584,7 +588,8 @@ existant demande en plus `-f`.
 Alias : `/schem cp` — Permission : `worldedit.schematic.copy`
 
 Comme `rename`, mais conserve l'original : `worldedit.schematic.delete` n'est donc exigée que pour
-écraser un fichier existant (avec `-f`). Mêmes règles pour l'extension.
+écraser un fichier existant (avec `-f`). Mêmes règles pour l'extension et pour le `.mtl` d'un export
+`.obj`, qui est copié avec lui.
 
 ```
 /schem copy maisons/ferme archives/ferme_2026

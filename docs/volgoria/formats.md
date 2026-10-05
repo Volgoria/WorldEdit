@@ -74,6 +74,8 @@ Pour les logiciels 3D (Blender, etc.).
 
 - Écrit `maison.obj` **et** `maison.mtl` à côté (la bibliothèque de matériaux est référencée par
   `mtllib`). En cas d'échec, les deux fichiers sont supprimés.
+- `/schem rename` et `/schem copy` emportent le `.mtl` avec le `.obj` (et mettent à jour `mtllib`) ;
+  `/schem delete maison.obj` supprime aussi `maison.mtl`.
 - Seules les **faces visibles** sont exportées : une face est cachée si le bloc voisin la masque
   (cube plein opaque) ou est du même type (verre contre verre).
 - Un groupe d'objets et un matériau (`usemtl`) **par type de bloc** ; les faces coplanaires d'un même

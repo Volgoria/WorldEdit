@@ -49,6 +49,7 @@ import static com.sk89q.worldedit.extent.clipboard.io.ClipboardIoTestSupport.STO
 import static com.sk89q.worldedit.extent.clipboard.io.ClipboardIoTestSupport.state;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -178,6 +179,89 @@ class SchematicFilesTest extends BaseWorldEditTest {
         assertThrows(IOException.class, () -> SchematicFiles.transfer(root.resolve("missing.schem"), root.resolve("b.schem"), false, false));
         Files.createDirectories(root.resolve("folder"));
         assertThrows(IOException.class, () -> SchematicFiles.transfer(root.resolve("folder"), root.resolve("b.schem"), false, false));
+    }
+
+    private static final String OBJ = "# Exported by WorldEdit\nmtllib house.mtl\nvn 0 1 0\nusemtl stone\n";
+
+    @Test
+    @DisplayName("finds the material library of OBJ exports only")
+    void materialLibraryOf() throws Exception {
+        Path obj = create("house.obj", OBJ);
+        assertNull(SchematicFiles.materialLibraryOf(obj));
+        Path mtl = create("house.mtl", "newmtl stone\n");
+        assertEquals(mtl, SchematicFiles.materialLibraryOf(obj));
+        create("other.schem", "data");
+        create("other.mtl", "newmtl stone\n");
+        assertNull(SchematicFiles.materialLibraryOf(root.resolve("other.schem")));
+    }
+
+    @Test
+    @DisplayName("renames an OBJ export with its material library and relinks it")
+    void moveObjWithMaterialLibrary() throws Exception {
+        Path obj = create("house.obj", OBJ);
+        Path mtl = create("house.mtl", "newmtl stone\n");
+        Path target = root.resolve("archive/villa.obj");
+        SchematicFiles.transferWithMaterialLibrary(obj, target, true, false, false);
+
+        assertFalse(Files.exists(obj));
+        assertFalse(Files.exists(mtl));
+        assertEquals("newmtl stone\n", Files.readString(root.resolve("archive/villa.mtl")));
+        assertEquals(OBJ.replace("mtllib house.mtl", "mtllib villa.mtl"), Files.readString(target));
+    }
+
+    @Test
+    @DisplayName("copies an OBJ export with its material library")
+    void copyObjWithMaterialLibrary() throws Exception {
+        Path obj = create("house.obj", OBJ);
+        Path mtl = create("house.mtl", "newmtl stone\n");
+        Path target = root.resolve("house2.obj");
+        SchematicFiles.transferWithMaterialLibrary(obj, target, false, false, false);
+
+        assertEquals(OBJ, Files.readString(obj));
+        assertEquals("newmtl stone\n", Files.readString(mtl));
+        assertEquals("newmtl stone\n", Files.readString(root.resolve("house2.mtl")));
+        assertEquals(OBJ.replace("mtllib house.mtl", "mtllib house2.mtl"), Files.readString(target));
+    }
+
+    @Test
+    @DisplayName("keeps the reference when the OBJ export only changes folder")
+    void moveObjToFolderKeepsName() throws Exception {
+        Path obj = create("house.obj", OBJ);
+        create("house.mtl", "newmtl stone\n");
+        Path target = root.resolve("old/house.obj");
+        SchematicFiles.transferWithMaterialLibrary(obj, target, true, false, false);
+        assertEquals(OBJ, Files.readString(target));
+        assertTrue(Files.exists(root.resolve("old/house.mtl")));
+    }
+
+    @Test
+    @DisplayName("touches nothing if the destination material library may not be replaced")
+    void existingMaterialLibraryIsNotReplaced() throws Exception {
+        Path obj = create("house.obj", OBJ);
+        Path mtl = create("house.mtl", "newmtl stone\n");
+        Path otherMtl = create("villa.mtl", "old\n");
+        Path target = root.resolve("villa.obj");
+        assertThrows(FileAlreadyExistsException.class,
+            () -> SchematicFiles.transferWithMaterialLibrary(obj, target, true, false, false));
+        assertTrue(Files.exists(obj));
+        assertTrue(Files.exists(mtl));
+        assertFalse(Files.exists(target));
+        assertEquals("old\n", Files.readString(otherMtl));
+
+        SchematicFiles.transferWithMaterialLibrary(obj, target, true, false, true);
+        assertEquals("newmtl stone\n", Files.readString(otherMtl));
+        assertFalse(Files.exists(mtl));
+    }
+
+    @Test
+    @DisplayName("transfers other files as usual")
+    void transferWithoutMaterialLibrary() throws Exception {
+        Path source = create("house.schem", "data");
+        create("house.mtl", "unrelated");
+        SchematicFiles.transferWithMaterialLibrary(source, root.resolve("villa.schem"), true, false, false);
+        assertEquals("data", Files.readString(root.resolve("villa.schem")));
+        assertTrue(Files.exists(root.resolve("house.mtl")));
+        assertFalse(Files.exists(root.resolve("villa.mtl")));
     }
 
     @Test
