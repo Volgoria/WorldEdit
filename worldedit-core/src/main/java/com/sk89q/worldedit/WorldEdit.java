@@ -73,7 +73,6 @@ import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockType;
 import org.apache.logging.log4j.Logger;
 
-import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -713,25 +712,16 @@ public final class WorldEdit {
 
         String script;
 
-        try {
-            InputStream file;
-
-            if (!f.exists()) {
-                file = WorldEdit.class.getResourceAsStream("craftscripts/" + filename);
-
-                if (file == null) {
-                    player.printError(TranslatableComponent.of("worldedit.script.file-not-found", TextComponent.of(filename)));
-                    return;
-                }
-            } else {
-                file = new FileInputStream(f);
+        // Fall back to the bundled scripts; the stream is null if neither exists
+        try (InputStream in = f.exists()
+                ? new FileInputStream(f)
+                : WorldEdit.class.getResourceAsStream("craftscripts/" + filename)) {
+            if (in == null) {
+                player.printError(TranslatableComponent.of("worldedit.script.file-not-found", TextComponent.of(filename)));
+                return;
             }
-
-            DataInputStream in = new DataInputStream(file);
-            byte[] data = new byte[in.available()];
-            in.readFully(data);
-            in.close();
-            script = new String(data, StandardCharsets.UTF_8);
+            // Read the whole stream: available() is only an estimate and can be short for resources
+            script = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             player.printError(TranslatableComponent.of("worldedit.script.read-error", TextComponent.of(e.getMessage())));
             return;
