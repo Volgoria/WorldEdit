@@ -19,10 +19,14 @@
 
 package com.sk89q.worldedit.extension.factory;
 
+import com.google.common.base.CharMatcher;
+import com.sk89q.util.StringUtil;
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.AliasParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.AdjacentMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.AirMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.AngleMaskParser;
+import com.sk89q.worldedit.extension.factory.parser.mask.AxisRangeMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.BiomeMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.BlockCategoryMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.BlockStateMaskParser;
@@ -35,22 +39,27 @@ import com.sk89q.worldedit.extension.factory.parser.mask.FullCubeMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.LazyRegionMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.NegateMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.NoiseMaskParser;
+import com.sk89q.worldedit.extension.factory.parser.mask.OffsetBracketMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.OffsetMaskParser;
+import com.sk89q.worldedit.extension.factory.parser.mask.RadiusMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.RegionMaskParser;
 import com.sk89q.worldedit.extension.factory.parser.mask.SolidMaskParser;
-import com.sk89q.worldedit.extension.factory.parser.mask.YRangeMaskParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.NoMatchException;
 import com.sk89q.worldedit.extension.input.ParserContext;
+import com.sk89q.worldedit.function.mask.BlockMaterialMask;
+import com.sk89q.worldedit.function.mask.CoordinateRangeMask.Axis;
 import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.function.mask.MaskIntersection;
+import com.sk89q.worldedit.function.mask.Masks;
 import com.sk89q.worldedit.internal.registry.AbstractFactory;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
+import com.sk89q.worldedit.world.registry.BlockMaterial;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -61,6 +70,8 @@ import java.util.stream.Collectors;
  * {@link WorldEdit#getMaskFactory()}.</p>
  */
 public final class MaskFactory extends AbstractFactory<Mask> {
+
+    private static final CharMatcher COMPONENT_DELIMITER = CharMatcher.is(' ');
 
     /**
      * Create a new mask registry.
@@ -86,17 +97,40 @@ public final class MaskFactory extends AbstractFactory<Mask> {
 
         register(new BlockCategoryMaskParser(worldEdit));
         register(new BiomeMaskParser(worldEdit));
-        register(new YRangeMaskParser(worldEdit));
+        for (Axis axis : Axis.values()) {
+            register(new AxisRangeMaskParser(worldEdit, axis));
+        }
         register(new AngleMaskParser(worldEdit));
         register(new AdjacentMaskParser(worldEdit));
+        register(new OffsetBracketMaskParser(worldEdit));
+        register(new RadiusMaskParser(worldEdit));
+
+        register(new AliasParser<>(worldEdit, c -> Masks.wall(c.requireExtent()), "#wall"));
+        register(new AliasParser<>(worldEdit, c -> Masks.floor(c.requireExtent()), "#floor", "#top"));
+        register(new AliasParser<>(worldEdit, c -> Masks.ceiling(c.requireExtent()), "#ceiling", "#roof"));
+        register(materialParser(worldEdit, BlockMaterial::isLiquid, "#liquid"));
+        register(materialParser(worldEdit, BlockMaterial::isOpaque, "#opaque"));
+        register(materialParser(worldEdit, m -> !m.isOpaque(), "#transparent"));
+    }
+
+    private static AliasParser<Mask> materialParser(WorldEdit worldEdit, Predicate<BlockMaterial> predicate, String alias) {
+        return new AliasParser<>(worldEdit, c -> new BlockMaterialMask(c.requireExtent(), predicate), alias);
+    }
+
+    /**
+     * Split an intersection of masks at the spaces that are not inside brackets.
+     */
+    private static List<String> splitComponents(String input) {
+        return StringUtil.splitOutsideBrackets(input, COMPONENT_DELIMITER);
     }
 
     @Override
     public List<String> getSuggestions(String input, ParserContext context) {
-        final String[] split = input.split(" ", 0);
-        if (split.length > 1) {
-            String prev = input.substring(0, input.lastIndexOf(' ')) + " ";
-            return super.getSuggestions(split[split.length - 1], context).stream()
+        List<String> components = splitComponents(input);
+        if (components.size() > 1) {
+            String last = components.get(components.size() - 1);
+            String prev = input.substring(0, input.length() - last.length());
+            return super.getSuggestions(last, context).stream()
                 .map(s -> prev + s)
                 .collect(Collectors.toList());
         }
@@ -107,23 +141,10 @@ public final class MaskFactory extends AbstractFactory<Mask> {
     public Mask parseFromInput(String input, ParserContext context) throws InputParseException {
         List<Mask> masks = new ArrayList<>();
 
-        for (String component : input.split(" ", 0)) {
-            if (component.isEmpty()) {
-                continue;
+        for (String component : splitComponents(input)) {
+            if (!component.isEmpty()) {
+                masks.add(super.parseFromInput(component, context));
             }
-
-            Mask match = null;
-            for (InputParser<Mask> parser : getParsers()) {
-                match = parser.parseFromInput(component, context);
-
-                if (match != null) {
-                    break;
-                }
-            }
-            if (match == null) {
-                throw new NoMatchException(TranslatableComponent.of("worldedit.error.no-match", TextComponent.of(component)));
-            }
-            masks.add(match);
         }
 
         return switch (masks.size()) {

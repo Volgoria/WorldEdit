@@ -23,41 +23,38 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.factory.parser.BracketArgumentParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
-import com.sk89q.worldedit.function.pattern.CheckerPattern;
+import com.sk89q.worldedit.function.pattern.OffsetPattern;
 import com.sk89q.worldedit.function.pattern.Pattern;
 
 import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * Parses {@code #checker[<pattern>][<pattern>]} and {@code #checker[<pattern>][<pattern>][<size>]}.
+ * Parses {@code #offset[<x>][<y>][<z>][<pattern>]}, using the block the
+ * pattern gives at the offset position. For example,
+ * {@code #offset[0][1][0][#existing]} copies the block above.
  */
-public class CheckerPatternParser extends BracketArgumentParser<Pattern> {
+public class OffsetPatternParser extends BracketArgumentParser<Pattern> {
 
-    public CheckerPatternParser(WorldEdit worldEdit) {
-        super(worldEdit, "#checker", 2, 3);
+    public OffsetPatternParser(WorldEdit worldEdit) {
+        super(worldEdit, "#offset", 4, 4);
     }
 
     @Override
     public String getUsage() {
-        return "#checker[<pattern>][<pattern>][size]";
+        return "#offset[<x>][<y>][<z>][<pattern>]";
     }
 
     @Override
     protected Pattern parseArguments(List<String> arguments, ParserContext context) throws InputParseException {
-        Pattern first = parsePattern(arguments.get(0), context);
-        Pattern second = parsePattern(arguments.get(1), context);
-        int size = arguments.size() > 2
-            ? parseInt(arguments.get(2), "size", 1, Integer.MAX_VALUE)
-            : 1;
-        return new CheckerPattern(first, second, size);
+        return new OffsetPattern(parsePattern(arguments.get(3), context), parseBlockVector(arguments, 0));
     }
 
     @Override
     protected Stream<String> getArgumentSuggestions(int index, String partial, ParserContext context) {
-        if (index < 2) {
-            return suggestPattern(partial, context);
+        if (index < 3) {
+            return suggestFrom(partial, OFFSET_SUGGESTIONS);
         }
-        return suggestFrom(partial, "1", "2", "4", "8");
+        return suggestPattern(partial, context);
     }
 }

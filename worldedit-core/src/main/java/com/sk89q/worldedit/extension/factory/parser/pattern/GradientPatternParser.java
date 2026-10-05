@@ -19,7 +19,6 @@
 
 package com.sk89q.worldedit.extension.factory.parser.pattern;
 
-import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.factory.parser.BracketArgumentParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
@@ -27,8 +26,6 @@ import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.pattern.GradientPattern;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.regions.Region;
-import com.sk89q.worldedit.util.formatting.text.TextComponent;
-import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
 import java.util.List;
 import java.util.stream.Stream;
@@ -59,19 +56,11 @@ public class GradientPatternParser extends BracketArgumentParser<Pattern> {
             fromY = parseInt(arguments.get(1));
             toY = parseInt(arguments.get(2));
         } else if (arguments.size() == 1) {
-            Region selection;
-            try {
-                selection = context.requireSession().getSelection(context.requireWorld());
-            } catch (IncompleteRegionException _) {
-                throw new InputParseException(TranslatableComponent.of("worldedit.error.incomplete-region"));
-            }
+            Region selection = context.requireSelection();
             fromY = selection.getMinimumPoint().y();
             toY = selection.getMaximumPoint().y();
         } else {
-            throw new InputParseException(TranslatableComponent.of(
-                "worldedit.error.parser.bracket-args.wrong-count",
-                TextComponent.of(getName()), TextComponent.of(getUsage())
-            ));
+            throw wrongArgumentCount();
         }
         return new GradientPattern(patterns, fromY, toY);
     }

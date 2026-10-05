@@ -22,22 +22,31 @@ package com.sk89q.worldedit.extension.factory.parser.pattern;
 import com.google.common.base.CharMatcher;
 import com.sk89q.util.StringUtil;
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.ArgumentInputParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.function.pattern.RandomPattern;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.stream.Stream;
 
-public class RandomPatternParser extends InputParser<Pattern> {
+/**
+ * Parses a comma separated list of patterns, each optionally preceded by a
+ * weight and a percent sign, e.g. {@code 70%stone,30%dirt}. Entries without
+ * a weight have a weight of 1.
+ */
+public class RandomPatternParser extends ArgumentInputParser<Pattern> {
 
     private static final CharMatcher PATTERN_DELIMITER = CharMatcher.is(',');
 
-    private final java.util.regex.Pattern regex = java.util.regex.Pattern.compile("[0-9]+(\\.[0-9]*)?%.*");
+    /**
+     * Matches {@code <weight>%<pattern>}; the pattern may be empty, which is an error when parsing.
+     */
+    private static final java.util.regex.Pattern WEIGHTED = java.util.regex.Pattern.compile("([0-9]+(?:\\.[0-9]*)?)%(.*)");
 
     public RandomPatternParser(WorldEdit worldEdit) {
         super(worldEdit);
@@ -49,49 +58,39 @@ public class RandomPatternParser extends InputParser<Pattern> {
         // get suggestions for the last token only
         String percent = null;
         String token = patterns.get(patterns.size() - 1);
-        if (regex.matcher(token).matches()) {
-            String[] p = token.split("%", 2);
-            percent = p[0];
-            token = p[1];
+        Matcher matcher = WEIGHTED.matcher(token);
+        if (matcher.matches()) {
+            percent = matcher.group(1);
+            token = matcher.group(2);
         } else if (patterns.size() == 1) {
             return Stream.empty(); // handled by DefaultBlockParser
         }
         String previous = patterns.size() == 1 ? "" : String.join(",", patterns.subList(0, patterns.size() - 1)) + ",";
         String prefix = previous + (percent == null ? "" : percent + "%");
-        final List<String> innerSuggestions = worldEdit.getPatternFactory().getSuggestions(token, context);
-        return innerSuggestions.stream().map(s -> prefix + s);
+        return suggestPattern(token, context).map(s -> prefix + s);
     }
 
     @Override
     public Pattern parseFromInput(String input, ParserContext context) throws InputParseException {
-        RandomPattern randomPattern = new RandomPattern();
-
         List<String> patterns = StringUtil.splitOutsideBrackets(input, PATTERN_DELIMITER);
         if (patterns.size() == 1) {
             return null; // let a 'single'-pattern parser handle it
         }
+        RandomPattern randomPattern = new RandomPattern();
         for (String token : patterns) {
-            double chance;
-            Pattern innerPattern;
-
-            // Parse special percentage syntax
-            if (token.matches("[0-9]+(\\.[0-9]*)?%.*")) {
-                String[] p = token.split("%", 0);
-
-                if (p.length < 2 || p[1].isEmpty()) {
-                    throw new InputParseException(TranslatableComponent.of("worldedit.error.parser.missing-random-type", TextComponent.of(input)));
-                } else {
-                    chance = Double.parseDouble(p[0]);
-                    innerPattern = worldEdit.getPatternFactory().parseFromInput(p[1], context);
+            Matcher matcher = WEIGHTED.matcher(token);
+            if (matcher.matches()) {
+                String inner = matcher.group(2);
+                if (inner.isEmpty()) {
+                    throw new InputParseException(TranslatableComponent.of(
+                        "worldedit.error.parser.missing-random-type", TextComponent.of(input)
+                    ));
                 }
+                randomPattern.add(parsePattern(inner, context), Double.parseDouble(matcher.group(1)));
             } else {
-                chance = 1;
-                innerPattern = worldEdit.getPatternFactory().parseFromInput(token, context);
+                randomPattern.add(parsePattern(token, context), 1);
             }
-
-            randomPattern.add(innerPattern, chance);
         }
-
         return randomPattern;
     }
 }

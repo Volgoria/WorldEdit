@@ -20,51 +20,44 @@
 package com.sk89q.worldedit.extension.factory.parser.mask;
 
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.PrefixParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.mask.ExistingBlockMask;
 import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.function.mask.OffsetsMask;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.math.BlockVector3;
 
 import java.util.stream.Stream;
 
-public class OffsetMaskParser extends InputParser<Mask> {
+/**
+ * Parses {@code >[mask]} (the block below matches), {@code <[mask]} (the
+ * block above matches) and {@code ~[mask]} (any adjacent block matches).
+ * Without a mask, {@code #existing} is used.
+ */
+public class OffsetMaskParser extends PrefixParser<Mask> {
+
+    private static final BlockVector3 BELOW = BlockVector3.at(0, -1, 0);
+    private static final BlockVector3 ABOVE = BlockVector3.at(0, 1, 0);
 
     public OffsetMaskParser(WorldEdit worldEdit) {
-        super(worldEdit);
+        super(worldEdit, ">", "<", "~");
     }
 
     @Override
-    public Stream<String> getSuggestions(String input, ParserContext context) {
-        if (input.isEmpty()) {
-            return Stream.of(">", "<", "~");
-        }
-        final char firstChar = input.charAt(0);
-        if (firstChar != '>' && firstChar != '<' && firstChar != '~') {
-            return Stream.empty();
-        }
-        return worldEdit.getMaskFactory().getSuggestions(input.substring(1), context).stream().map(s -> firstChar + s);
+    protected Stream<String> getRemainderSuggestions(String prefix, String remainder, ParserContext context) {
+        return suggestMask(remainder, context);
     }
 
     @Override
-    public Mask parseFromInput(String input, ParserContext context) throws InputParseException {
-        final char firstChar = input.charAt(0);
-        if (firstChar != '>' && firstChar != '<' && firstChar != '~') {
-            return null;
-        }
-
-        Mask submask;
-        if (input.length() > 1) {
-            submask = worldEdit.getMaskFactory().parseFromInput(input.substring(1), context);
-        } else {
-            submask = new ExistingBlockMask(context.requireExtent());
-        }
-        if (firstChar == '~') {
-            return OffsetsMask.adjacent(submask);
-        } else {
-            return OffsetsMask.single(submask, BlockVector3.at(0, firstChar == '>' ? -1 : 1, 0));
-        }
+    protected Mask parseRemainder(String prefix, String remainder, ParserContext context) throws InputParseException {
+        Mask submask = remainder.isEmpty()
+            ? new ExistingBlockMask(context.requireExtent())
+            : parseMask(remainder, context);
+        return switch (prefix) {
+            case "~" -> OffsetsMask.adjacent(submask);
+            case ">" -> OffsetsMask.single(submask, BELOW);
+            default -> OffsetsMask.single(submask, ABOVE);
+        };
     }
 }

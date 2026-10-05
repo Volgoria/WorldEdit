@@ -22,20 +22,23 @@ package com.sk89q.worldedit.extension.factory.parser.pattern;
 import com.sk89q.worldedit.EmptyClipboardException;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.ArgumentInputParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.function.pattern.ClipboardPattern;
 import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
 import java.util.Locale;
 import java.util.stream.Stream;
 
-public class ClipboardPatternParser extends InputParser<Pattern> {
+/**
+ * Parses {@code #clipboard} and {@code #copy}, optionally followed by an
+ * offset as {@code @[x,y,z]}, repeating the clipboard contents.
+ */
+public class ClipboardPatternParser extends ArgumentInputParser<Pattern> {
 
     public ClipboardPatternParser(WorldEdit worldEdit) {
         super(worldEdit);
@@ -86,22 +89,17 @@ public class ClipboardPatternParser extends InputParser<Pattern> {
                 throw new InputParseException(TranslatableComponent.of("worldedit.error.parser.clipboard.missing-coordinates"));
             }
             offset = BlockVector3.at(
-                    Integer.parseInt(offsetSplit[0]),
-                    Integer.parseInt(offsetSplit[1]),
-                    Integer.parseInt(offsetSplit[2])
+                    parseInt(offsetSplit[0]),
+                    parseInt(offsetSplit[1]),
+                    parseInt(offsetSplit[2])
             );
         }
 
-        if (session != null) {
-            try {
-                ClipboardHolder holder = session.getClipboard();
-                Clipboard clipboard = holder.getClipboard();
-                return new ClipboardPattern(clipboard, offset);
-            } catch (EmptyClipboardException _) {
-                throw new InputParseException(TranslatableComponent.of("worldedit.error.empty-clipboard"));
-            }
-        } else {
-            throw new InputParseException(TranslatableComponent.of("worldedit.error.missing-session"));
+        try {
+            Clipboard clipboard = session.getClipboard().getClipboard();
+            return new ClipboardPattern(clipboard, offset);
+        } catch (EmptyClipboardException _) {
+            throw new InputParseException(TranslatableComponent.of("worldedit.error.empty-clipboard"));
         }
     }
 

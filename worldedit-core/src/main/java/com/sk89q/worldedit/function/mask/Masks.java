@@ -19,6 +19,8 @@
 
 package com.sk89q.worldedit.function.mask;
 
+import com.google.common.collect.ImmutableList;
+import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.math.BlockVector2;
 import com.sk89q.worldedit.math.BlockVector3;
 
@@ -33,6 +35,9 @@ public final class Masks {
 
     private static final AlwaysTrue ALWAYS_TRUE = new AlwaysTrue();
     private static final AlwaysFalse ALWAYS_FALSE = new AlwaysFalse();
+    private static final ImmutableList<BlockVector3> HORIZONTAL_OFFSETS = ImmutableList.of(
+        BlockVector3.UNIT_X, BlockVector3.UNIT_MINUS_X, BlockVector3.UNIT_Z, BlockVector3.UNIT_MINUS_Z
+    );
 
     private Masks() {
     }
@@ -123,6 +128,51 @@ public final class Masks {
 
         checkNotNull(mask);
         return new NegatedMask2D(mask);
+    }
+
+    /**
+     * Return a mask matching existing (non-air) blocks where at least one of
+     * the blocks at the given offsets is air.
+     *
+     * @param extent the extent
+     * @param offsets the offsets to check for air
+     * @return a mask
+     */
+    public static Mask exposedTo(Extent extent, Iterable<BlockVector3> offsets) {
+        return OffsetsMask.builder(negate(new ExistingBlockMask(extent)))
+            .excludeSelf(true)
+            .offsets(offsets)
+            .build();
+    }
+
+    /**
+     * Return a mask matching existing blocks with air on at least one horizontal side.
+     *
+     * @param extent the extent
+     * @return a mask
+     */
+    public static Mask wall(Extent extent) {
+        return exposedTo(extent, HORIZONTAL_OFFSETS);
+    }
+
+    /**
+     * Return a mask matching existing blocks with air directly above.
+     *
+     * @param extent the extent
+     * @return a mask
+     */
+    public static Mask floor(Extent extent) {
+        return exposedTo(extent, ImmutableList.of(BlockVector3.UNIT_Y));
+    }
+
+    /**
+     * Return a mask matching existing blocks with air directly below.
+     *
+     * @param extent the extent
+     * @return a mask
+     */
+    public static Mask ceiling(Extent extent) {
+        return exposedTo(extent, ImmutableList.of(BlockVector3.UNIT_MINUS_Y));
     }
 
     /**

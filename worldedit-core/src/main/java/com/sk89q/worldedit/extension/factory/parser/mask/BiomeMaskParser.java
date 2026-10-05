@@ -22,12 +22,12 @@ package com.sk89q.worldedit.extension.factory.parser.mask;
 import com.google.common.base.Splitter;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.command.util.SuggestionHelper;
+import com.sk89q.worldedit.extension.factory.parser.PrefixParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.NoMatchException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.mask.BiomeMask;
 import com.sk89q.worldedit.function.mask.Mask;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.world.biome.BiomeType;
@@ -38,47 +38,38 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class BiomeMaskParser extends InputParser<Mask> {
+/**
+ * Parses {@code $<biome>,<biome>,...}, matching blocks in any of the biomes.
+ */
+public class BiomeMaskParser extends PrefixParser<Mask> {
 
     public BiomeMaskParser(WorldEdit worldEdit) {
-        super(worldEdit);
+        super(worldEdit, "$");
     }
 
     @Override
-    public Stream<String> getSuggestions(String input, ParserContext context) {
-        if (input.isEmpty()) {
-            return Stream.of("$");
+    protected Stream<String> getRemainderSuggestions(String prefix, String remainder, ParserContext context) {
+        final int lastTermIdx = remainder.lastIndexOf(',');
+        if (lastTermIdx <= 0) {
+            return SuggestionHelper.getNamespacedRegistrySuggestions(BiomeType.REGISTRY, remainder);
         }
-        if (input.charAt(0) == '$') {
-            input = input.substring(1);
-            final int lastTermIdx = input.lastIndexOf(',');
-            if (lastTermIdx <= 0) {
-                return SuggestionHelper.getNamespacedRegistrySuggestions(BiomeType.REGISTRY, input).map(s -> "$" + s);
-            }
-            String prev = input.substring(0, lastTermIdx) + ",";
-            Set<String> prevBiomes = Arrays.stream(prev.split(",", 0)).collect(Collectors.toSet());
-            String search = input.substring(lastTermIdx + 1);
-            return SuggestionHelper.getNamespacedRegistrySuggestions(BiomeType.REGISTRY, search)
-                    .filter(s -> !prevBiomes.contains(s)).map(s -> "$" + prev + s);
-        }
-        return Stream.empty();
+        String prev = remainder.substring(0, lastTermIdx) + ",";
+        Set<String> prevBiomes = Arrays.stream(prev.split(",", 0)).collect(Collectors.toSet());
+        String search = remainder.substring(lastTermIdx + 1);
+        return SuggestionHelper.getNamespacedRegistrySuggestions(BiomeType.REGISTRY, search)
+            .filter(s -> !prevBiomes.contains(s)).map(s -> prev + s);
     }
 
     @Override
-    public Mask parseFromInput(String input, ParserContext context) throws InputParseException {
-        if (!input.startsWith("$")) {
-            return null;
-        }
-
+    protected Mask parseRemainder(String prefix, String remainder, ParserContext context) throws InputParseException {
         Set<BiomeType> biomes = new HashSet<>();
-        for (String biomeName : Splitter.on(",").split(input.substring(1))) {
+        for (String biomeName : Splitter.on(",").split(remainder)) {
             BiomeType biome = BiomeType.REGISTRY.get(biomeName);
             if (biome == null) {
                 throw new NoMatchException(TranslatableComponent.of("worldedit.error.unknown-biome", TextComponent.of(biomeName)));
             }
             biomes.add(biome);
         }
-
         return new BiomeMask(context.requireExtent(), biomes);
     }
 }

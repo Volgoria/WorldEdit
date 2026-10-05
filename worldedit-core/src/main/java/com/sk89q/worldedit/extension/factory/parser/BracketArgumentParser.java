@@ -19,14 +19,11 @@
 
 package com.sk89q.worldedit.extension.factory.parser;
 
-import com.google.common.base.CharMatcher;
-import com.google.common.collect.ImmutableList;
 import com.sk89q.util.StringUtil;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
-import com.sk89q.worldedit.function.pattern.Pattern;
-import com.sk89q.worldedit.internal.registry.InputParser;
+import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 
@@ -49,9 +46,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
  *
  * @param <E> the type of the parsed element
  */
-public abstract class BracketArgumentParser<E> extends InputParser<E> {
+public abstract class BracketArgumentParser<E> extends ArgumentInputParser<E> {
 
-    private static final CharMatcher LIST_DELIMITER = CharMatcher.is(',');
+    /**
+     * Suggestions for a small block offset along one axis.
+     */
+    protected static final String[] OFFSET_SUGGESTIONS = {"-2", "-1", "0", "1", "2"};
 
     private final String name;
     private final int minArguments;
@@ -62,14 +62,14 @@ public abstract class BracketArgumentParser<E> extends InputParser<E> {
      *
      * @param worldEdit the WorldEdit instance
      * @param name the name including its prefix, e.g. {@code #checker}; must be lower case
-     * @param minArguments the minimum number of bracketed arguments
+     * @param minArguments the minimum number of bracketed arguments, may be 0
      * @param maxArguments the maximum number of bracketed arguments
      */
     protected BracketArgumentParser(WorldEdit worldEdit, String name, int minArguments, int maxArguments) {
         super(worldEdit);
         checkNotNull(name);
         checkArgument(name.equals(name.toLowerCase(Locale.ROOT)), "name must be lower case");
-        checkArgument(minArguments >= 1 && minArguments <= maxArguments, "invalid argument count range");
+        checkArgument(minArguments >= 0 && minArguments <= maxArguments, "invalid argument count range");
         this.name = name;
         this.minArguments = minArguments;
         this.maxArguments = maxArguments;
@@ -118,10 +118,7 @@ public abstract class BracketArgumentParser<E> extends InputParser<E> {
         }
         List<String> arguments = splitArguments(input, name.length());
         if (arguments.size() < minArguments || arguments.size() > maxArguments) {
-            throw new InputParseException(TranslatableComponent.of(
-                "worldedit.error.parser.bracket-args.wrong-count",
-                TextComponent.of(name), TextComponent.of(getUsage())
-            ));
+            throw wrongArgumentCount();
         }
         return parseArguments(arguments, context);
     }
@@ -166,7 +163,10 @@ public abstract class BracketArgumentParser<E> extends InputParser<E> {
     public Stream<String> getSuggestions(String input, ParserContext context) {
         String lower = input.toLowerCase(Locale.ROOT);
         if (name.startsWith(lower)) {
-            return Stream.of(lower.length() == name.length() ? name + "[" : name);
+            if (lower.length() == name.length()) {
+                return maxArguments == 0 ? Stream.of(name) : Stream.of(name + "[");
+            }
+            return Stream.of(name);
         }
         if (!lower.startsWith(name + "[")) {
             return Stream.empty();
@@ -194,127 +194,31 @@ public abstract class BracketArgumentParser<E> extends InputParser<E> {
         return Stream.empty();
     }
 
-    // Helpers for subclasses
-
     /**
-     * Filter the given options by the typed prefix.
+     * Create the exception thrown when the number of arguments is wrong.
      *
-     * @param partial the typed text
-     * @param options the options
-     * @return the options starting with the typed text
+     * @return the exception
      */
-    protected static Stream<String> suggestFrom(String partial, String... options) {
-        String lower = partial.toLowerCase(Locale.ROOT);
-        return Stream.of(options).filter(s -> s.startsWith(lower));
-    }
-
-    /**
-     * Parse an integer argument.
-     *
-     * @param argument the argument
-     * @return the integer
-     * @throws InputParseException if the argument is not an integer
-     */
-    protected static int parseInt(String argument) throws InputParseException {
-        try {
-            return Integer.parseInt(argument.trim());
-        } catch (NumberFormatException _) {
-            throw new InputParseException(TranslatableComponent.of(
-                "worldedit.error.invalid-number.matches", TextComponent.of(argument)
-            ));
-        }
-    }
-
-    /**
-     * Parse an integer argument that must lie within a range.
-     *
-     * @param argument the argument
-     * @param what the name of the value, for error messages
-     * @param min the minimum allowed value
-     * @param max the maximum allowed value
-     * @return the integer
-     * @throws InputParseException if the argument is not an integer or out of range
-     */
-    protected static int parseInt(String argument, String what, int min, int max) throws InputParseException {
-        int value = parseInt(argument);
-        if (value < min || value > max) {
-            throw outOfRange(what, argument, String.valueOf(min), String.valueOf(max));
-        }
-        return value;
-    }
-
-    /**
-     * Parse a decimal argument that must lie within a range.
-     *
-     * @param argument the argument
-     * @param what the name of the value, for error messages
-     * @param min the minimum allowed value
-     * @param max the maximum allowed value
-     * @return the number
-     * @throws InputParseException if the argument is not a number or out of range
-     */
-    protected static double parseDouble(String argument, String what, double min, double max) throws InputParseException {
-        double value;
-        try {
-            value = Double.parseDouble(argument.trim());
-        } catch (NumberFormatException _) {
-            throw new InputParseException(TranslatableComponent.of(
-                "worldedit.error.invalid-number.matches", TextComponent.of(argument)
-            ));
-        }
-        if (!(value >= min && value <= max)) {
-            throw outOfRange(what, argument, formatNumber(min), formatNumber(max));
-        }
-        return value;
-    }
-
-    private static String formatNumber(double value) {
-        if (value == Double.MAX_VALUE) {
-            return "∞";
-        }
-        return value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value);
-    }
-
-    private static InputParseException outOfRange(String what, String argument, String min, String max) {
+    protected InputParseException wrongArgumentCount() {
         return new InputParseException(TranslatableComponent.of(
-            "worldedit.error.parser.bracket-args.out-of-range",
-            TextComponent.of(what), TextComponent.of(argument), TextComponent.of(min), TextComponent.of(max)
+            "worldedit.error.parser.bracket-args.wrong-count",
+            TextComponent.of(name), TextComponent.of(getUsage())
         ));
     }
 
     /**
-     * Parse a comma separated list of patterns, e.g. {@code stone,dirt,#copy}.
+     * Parse three integer arguments, starting at the given index, into a vector.
      *
-     * @param argument the argument
-     * @param context the parser context
-     * @return the patterns, never empty
-     * @throws InputParseException if a pattern is invalid or the list is empty
+     * @param arguments the arguments
+     * @param start the index of the X argument
+     * @return the vector
+     * @throws InputParseException if an argument is not an integer
      */
-    protected List<Pattern> parsePatternList(String argument, ParserContext context) throws InputParseException {
-        ImmutableList.Builder<Pattern> patterns = ImmutableList.builder();
-        for (String part : StringUtil.splitOutsideBrackets(argument, LIST_DELIMITER)) {
-            if (part.isEmpty()) {
-                throw new InputParseException(TranslatableComponent.of(
-                    "worldedit.error.parser.bracket-args.empty-entry", TextComponent.of(argument)
-                ));
-            }
-            patterns.add(worldEdit.getPatternFactory().parseFromInput(part, context));
-        }
-        return patterns.build();
-    }
-
-    /**
-     * Suggest completions for a comma separated list of patterns.
-     *
-     * @param partial the typed text
-     * @param context the parser context
-     * @return suggestions for the whole list
-     */
-    protected Stream<String> suggestPatternList(String partial, ParserContext context) {
-        // only commas outside of brackets separate entries
-        List<String> parts = StringUtil.splitOutsideBrackets(partial, LIST_DELIMITER);
-        String last = parts.get(parts.size() - 1);
-        String prefix = partial.substring(0, partial.length() - last.length());
-        return worldEdit.getPatternFactory().getSuggestions(last, context).stream().map(s -> prefix + s);
+    protected static BlockVector3 parseBlockVector(List<String> arguments, int start) throws InputParseException {
+        return BlockVector3.at(
+            parseInt(arguments.get(start)),
+            parseInt(arguments.get(start + 1)),
+            parseInt(arguments.get(start + 2))
+        );
     }
 }

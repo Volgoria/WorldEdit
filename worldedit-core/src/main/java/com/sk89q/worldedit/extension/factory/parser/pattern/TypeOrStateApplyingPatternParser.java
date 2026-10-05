@@ -21,6 +21,7 @@ package com.sk89q.worldedit.extension.factory.parser.pattern;
 
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.command.util.SuggestionHelper;
+import com.sk89q.worldedit.extension.factory.parser.PrefixParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.extent.Extent;
@@ -29,7 +30,6 @@ import com.sk89q.worldedit.function.pattern.ExtentBufferedCompositePattern;
 import com.sk89q.worldedit.function.pattern.Pattern;
 import com.sk89q.worldedit.function.pattern.StateApplyingPattern;
 import com.sk89q.worldedit.function.pattern.TypeApplyingPattern;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.world.block.BlockType;
@@ -40,52 +40,44 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
-
-public class TypeOrStateApplyingPatternParser extends InputParser<Pattern> {
+/**
+ * Parses {@code ^<pattern>} (apply the block type of the pattern, keeping the
+ * existing states), {@code ^[<property>=<value>,...]} (apply states, keeping
+ * the existing type) and {@code ^<type>[<property>=<value>,...]} (both).
+ */
+public class TypeOrStateApplyingPatternParser extends PrefixParser<Pattern> {
 
     public TypeOrStateApplyingPatternParser(WorldEdit worldEdit) {
-        super(worldEdit);
+        super(worldEdit, "^");
     }
 
     @Override
-    public Stream<String> getSuggestions(String input, ParserContext context) {
-        if (input.isEmpty()) {
-            return Stream.of("^");
-        }
-        if (!input.startsWith("^")) {
-            return Stream.empty();
-        }
-        input = input.substring(1);
-
+    protected Stream<String> getRemainderSuggestions(String prefix, String input, ParserContext context) {
         String[] parts = input.split("\\[", 2);
         String type = parts[0];
 
         if (parts.length == 1 || input.startsWith("#")) {
-            return worldEdit.getPatternFactory().getSuggestions(input, context).stream().map(s -> "^" + s);
+            return suggestPattern(input, context);
         } else {
             if (type.isEmpty()) {
                 return Stream.empty(); // without knowing a type, we can't really suggest states
             } else {
                 BlockType blockType = BlockTypes.get(type.toLowerCase(Locale.ROOT));
-                return SuggestionHelper.getBlockPropertySuggestions(type, blockType, parts[1]).map(s -> "^" + s);
+                return SuggestionHelper.getBlockPropertySuggestions(type, blockType, parts[1]);
             }
         }
     }
 
     @Override
-    public Pattern parseFromInput(String input, ParserContext context) throws InputParseException {
-        if (!input.startsWith("^")) {
-            return null;
-        }
+    protected Pattern parseRemainder(String prefix, String input, ParserContext context) throws InputParseException {
         Extent extent = context.requireExtent();
-        input = input.substring(1);
 
         String[] parts = input.split("\\[", 2);
         String type = parts[0];
 
         if (parts.length == 1 || input.startsWith("#")) {
             // This is something we can likely parse as a pattern directly
-            return new TypeApplyingPattern(extent, worldEdit.getPatternFactory().parseFromInput(input, context));
+            return new TypeApplyingPattern(extent, parsePattern(input, context));
         } else {
             // states given
             if (!parts[1].endsWith("]")) {

@@ -148,6 +148,7 @@ public class OffsetsMask2D extends AbstractMask2D {
     private final int minMatches;
     private final int maxMatches;
     private final ImmutableSet<BlockVector2> offsets;
+    private final BlockVector2[] offsetArray;
 
     private OffsetsMask2D(Mask2D mask, boolean excludeSelf, int minMatches, int maxMatches, ImmutableSet<BlockVector2> offsets) {
         checkNotNull(mask);
@@ -163,6 +164,7 @@ public class OffsetsMask2D extends AbstractMask2D {
         this.minMatches = minMatches;
         this.maxMatches = maxMatches;
         this.offsets = offsets;
+        this.offsetArray = offsets.toArray(new BlockVector2[0]);
     }
 
     /**
@@ -218,7 +220,7 @@ public class OffsetsMask2D extends AbstractMask2D {
 
         int matches = 0;
 
-        for (BlockVector2 offset : offsets) {
+        for (BlockVector2 offset : offsetArray) {
             if (mask.test(vector.add(offset))) {
                 matches++;
                 if (matches > maxMatches) {

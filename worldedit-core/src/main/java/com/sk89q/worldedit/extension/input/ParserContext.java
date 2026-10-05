@@ -19,10 +19,12 @@
 
 package com.sk89q.worldedit.extension.input;
 
+import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.extension.factory.MaskFactory;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extent.Extent;
+import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import com.sk89q.worldedit.world.World;
 
@@ -192,6 +194,20 @@ public class ParserContext {
             throw new InputParseException(TranslatableComponent.of("worldedit.error.missing-actor"));
         }
         return actor;
+    }
+
+    /**
+     * Get the selection of the {@link LocalSession} in the {@link World} set on this context.
+     *
+     * @return the selection
+     * @throws InputParseException thrown if no session or world is set, or the selection is incomplete
+     */
+    public Region requireSelection() throws InputParseException {
+        try {
+            return requireSession().getSelection(requireWorld());
+        } catch (IncompleteRegionException _) {
+            throw new InputParseException(TranslatableComponent.of("worldedit.error.incomplete-region"));
+        }
     }
 
     /**

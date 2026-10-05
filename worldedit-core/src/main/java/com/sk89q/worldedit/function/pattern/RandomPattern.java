@@ -24,7 +24,7 @@ import com.sk89q.worldedit.world.block.BaseBlock;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -33,7 +33,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class RandomPattern extends AbstractPattern {
 
-    private final Random random = new Random();
     private final List<Chance> patterns = new ArrayList<>();
     private double max = 0;
 
@@ -54,7 +53,7 @@ public class RandomPattern extends AbstractPattern {
 
     @Override
     public BaseBlock applyBlock(BlockVector3 position) {
-        double r = random.nextDouble();
+        double r = ThreadLocalRandom.current().nextDouble();
         double offset = 0;
 
         for (Chance chance : patterns) {

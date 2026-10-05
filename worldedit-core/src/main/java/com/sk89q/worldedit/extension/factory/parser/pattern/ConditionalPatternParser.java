@@ -23,41 +23,49 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.factory.parser.BracketArgumentParser;
 import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
-import com.sk89q.worldedit.function.pattern.CheckerPattern;
+import com.sk89q.worldedit.function.pattern.ConditionalPattern;
+import com.sk89q.worldedit.function.pattern.ExistingBlockPattern;
 import com.sk89q.worldedit.function.pattern.Pattern;
 
 import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * Parses {@code #checker[<pattern>][<pattern>]} and {@code #checker[<pattern>][<pattern>][<size>]}.
+ * Parses {@code #mask[<mask>][<pattern>]} and
+ * {@code #mask[<mask>][<pattern>][<else pattern>]}, using the first pattern
+ * where the mask matches and the second one elsewhere. Without a second
+ * pattern, other blocks are left unchanged.
+ *
+ * <p>For example, {@code #mask[#angle[40][90]][stone][grass_block]} textures
+ * steep slopes with stone.</p>
  */
-public class CheckerPatternParser extends BracketArgumentParser<Pattern> {
+public class ConditionalPatternParser extends BracketArgumentParser<Pattern> {
 
-    public CheckerPatternParser(WorldEdit worldEdit) {
-        super(worldEdit, "#checker", 2, 3);
+    public ConditionalPatternParser(WorldEdit worldEdit) {
+        super(worldEdit, "#mask", 2, 3);
     }
 
     @Override
     public String getUsage() {
-        return "#checker[<pattern>][<pattern>][size]";
+        return "#mask[<mask>][<pattern>][else pattern]";
     }
 
     @Override
     protected Pattern parseArguments(List<String> arguments, ParserContext context) throws InputParseException {
-        Pattern first = parsePattern(arguments.get(0), context);
-        Pattern second = parsePattern(arguments.get(1), context);
-        int size = arguments.size() > 2
-            ? parseInt(arguments.get(2), "size", 1, Integer.MAX_VALUE)
-            : 1;
-        return new CheckerPattern(first, second, size);
+        return new ConditionalPattern(
+            parseMask(arguments.get(0), context),
+            parsePattern(arguments.get(1), context),
+            arguments.size() > 2
+                ? parsePattern(arguments.get(2), context)
+                : new ExistingBlockPattern(context.requireExtent())
+        );
     }
 
     @Override
     protected Stream<String> getArgumentSuggestions(int index, String partial, ParserContext context) {
-        if (index < 2) {
-            return suggestPattern(partial, context);
+        if (index == 0) {
+            return suggestMask(partial, context);
         }
-        return suggestFrom(partial, "1", "2", "4", "8");
+        return suggestPattern(partial, context);
     }
 }

@@ -20,38 +20,33 @@
 package com.sk89q.worldedit.extension.factory.parser.mask;
 
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.extension.factory.parser.PrefixParser;
+import com.sk89q.worldedit.extension.input.InputParseException;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.function.mask.NoiseFilter;
-import com.sk89q.worldedit.internal.registry.InputParser;
 import com.sk89q.worldedit.math.noise.RandomNoise;
 
 import java.util.stream.Stream;
 
-public class NoiseMaskParser extends InputParser<Mask> {
+/**
+ * Parses {@code %<percentage>}, randomly matching the given percentage of
+ * blocks. The percentage is between 0 and 100 and may have decimals.
+ */
+public class NoiseMaskParser extends PrefixParser<Mask> {
 
     public NoiseMaskParser(WorldEdit worldEdit) {
-        super(worldEdit);
+        super(worldEdit, "%");
     }
 
     @Override
-    public Stream<String> getSuggestions(String input, ParserContext context) {
-        if (input.isEmpty()) {
-            return Stream.of("%");
-        }
-        if (input.charAt(0) != '%') {
-            return Stream.empty();
-        }
-        return Stream.of("%10", "%25", "%50", "%75").filter(s -> s.startsWith(input));
+    protected Stream<String> getRemainderSuggestions(String prefix, String remainder, ParserContext context) {
+        return suggestFrom(remainder, "10", "25", "50", "75");
     }
 
     @Override
-    public Mask parseFromInput(String input, ParserContext context) {
-        if (!input.startsWith("%")) {
-            return null;
-        }
-
-        int i = Integer.parseInt(input.substring(1));
-        return new NoiseFilter(new RandomNoise(), ((double) i) / 100);
+    protected Mask parseRemainder(String prefix, String remainder, ParserContext context) throws InputParseException {
+        double percentage = parseDouble(remainder, "percentage", 0, 100);
+        return new NoiseFilter(new RandomNoise(), percentage / 100);
     }
 }
