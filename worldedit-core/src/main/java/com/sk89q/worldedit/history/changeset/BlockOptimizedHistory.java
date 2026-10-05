@@ -19,21 +19,21 @@
 
 package com.sk89q.worldedit.history.changeset;
 
-import com.google.common.collect.Iterators;
 import com.sk89q.worldedit.history.change.BlockChange;
 import com.sk89q.worldedit.history.change.Change;
 import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.util.LocatedBlock;
-import com.sk89q.worldedit.util.collection.LocatedBlockList;
+import com.sk89q.worldedit.util.collection.BlockMap;
+import com.sk89q.worldedit.world.block.BaseBlock;
 
-import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * An extension of {@link ArrayListHistory} that stores {@link BlockChange}s
- * separately in two {@link ArrayList}s.
+ * separately, keeping only the first previous block and the last current
+ * block of each position.
  *
  * <p>Whether this is a good idea or not is highly questionable, but this class
  * exists because this is how history was implemented in WorldEdit for
@@ -41,12 +41,20 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class BlockOptimizedHistory extends ArrayListHistory {
 
-    private static Change createChange(LocatedBlock block) {
-        return new BlockChange(block.location(), block.block(), block.block());
-    }
-
-    private final LocatedBlockList previous = new LocatedBlockList();
-    private final LocatedBlockList current = new LocatedBlockList();
+    /**
+     * The last current block of each changed position.
+     */
+    private final BlockMap<BaseBlock> current = BlockMap.createForBaseBlock();
+    /**
+     * Each changed position, in the order first changed, with its first previous block.
+     */
+    private final BlockChangeLog previous = new BlockChangeLog(true);
+    /**
+     * Every block change's position, in order, if any position was changed
+     * more than once. Otherwise, this would be the same as the positions of
+     * {@link #previous}, and is {@code null}.
+     */
+    private BlockChangeLog currentOrder;
 
     @Override
     public void add(Change change) {
@@ -55,10 +63,17 @@ public class BlockOptimizedHistory extends ArrayListHistory {
         if (isRecordingChanges()) {
             if (change instanceof BlockChange blockChange) {
                 BlockVector3 position = blockChange.position();
-                if (!previous.containsLocation(position)) {
+                if (current.put(position, blockChange.current()) == null) {
                     previous.add(position, blockChange.previous());
+                    if (currentOrder != null) {
+                        currentOrder.add(position, null);
+                    }
+                } else {
+                    if (currentOrder == null) {
+                        currentOrder = previous.copyPositions();
+                    }
+                    currentOrder.add(position, null);
                 }
-                current.add(position, blockChange.current());
             } else {
                 super.add(change);
             }
@@ -67,16 +82,59 @@ public class BlockOptimizedHistory extends ArrayListHistory {
 
     @Override
     public Iterator<Change> forwardIterator() {
-        return Iterators.concat(
-                super.forwardIterator(),
-                Iterators.transform(current.iterator(), BlockOptimizedHistory::createChange));
+        Iterator<Change> changes = super.forwardIterator();
+        return new Iterator<>() {
+            private int index;
+
+            private BlockChangeLog order() {
+                return currentOrder != null ? currentOrder : previous;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return changes.hasNext() || index < order().size();
+            }
+
+            @Override
+            public Change next() {
+                if (changes.hasNext()) {
+                    return changes.next();
+                }
+                BlockChangeLog order = order();
+                if (index >= order.size()) {
+                    throw new NoSuchElementException();
+                }
+                BlockVector3 position = order.position(index++);
+                BaseBlock block = current.get(position);
+                return new BlockChange(position, block, block);
+            }
+        };
     }
 
     @Override
     public Iterator<Change> backwardIterator() {
-        return Iterators.concat(
-                super.backwardIterator(),
-                Iterators.transform(previous.reverseIterator(), BlockOptimizedHistory::createChange));
+        Iterator<Change> changes = super.backwardIterator();
+        return new Iterator<>() {
+            private int index = previous.size();
+
+            @Override
+            public boolean hasNext() {
+                return changes.hasNext() || index > 0;
+            }
+
+            @Override
+            public Change next() {
+                if (changes.hasNext()) {
+                    return changes.next();
+                }
+                if (index <= 0) {
+                    throw new NoSuchElementException();
+                }
+                index--;
+                BaseBlock block = previous.block(index);
+                return new BlockChange(previous.position(index), block, block);
+            }
+        };
     }
 
     @Override
