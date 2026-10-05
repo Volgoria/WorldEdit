@@ -128,7 +128,7 @@ class CuboidEdgesTest {
     void forEachStopsOnConsumerException() {
         int[] count = { 0 };
         IOException thrown = assertThrows(IOException.class, () ->
-            CuboidEdges.forEachEdgePosition(BlockVector3.ZERO, BlockVector3.at(9, 9, 9), position -> {
+            CuboidEdges.forEachEdgePosition(BlockVector3.ZERO, BlockVector3.at(9, 9, 9), _ -> {
                 if (++count[0] == 5) {
                     throw new IOException("stop");
                 }
