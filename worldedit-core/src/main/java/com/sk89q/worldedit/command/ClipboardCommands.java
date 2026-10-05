@@ -47,6 +47,7 @@ import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.selector.CuboidRegionSelector;
 import com.sk89q.worldedit.regions.selector.ExtendingCuboidRegionSelector;
 import com.sk89q.worldedit.session.ClipboardHolder;
+import com.sk89q.worldedit.session.RandomRotation;
 import com.sk89q.worldedit.util.formatting.text.Component;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
@@ -58,6 +59,7 @@ import org.enginehub.piston.annotation.param.ArgFlag;
 import org.enginehub.piston.annotation.param.Switch;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.sk89q.worldedit.command.util.Logging.LogMode.PLACEMENT;
 import static com.sk89q.worldedit.command.util.Logging.LogMode.REGION;
@@ -165,6 +167,8 @@ public class ClipboardCommands {
                           boolean pasteEntities,
                       @Switch(name = 'b', desc = "Paste biomes if available")
                           boolean pasteBiomes,
+                      @Switch(name = 'r', desc = "Randomly rotate the paste around the y-axis by a multiple of 90 degrees")
+                          boolean randomRotate,
                       @ArgFlag(name = 'm', desc = "Only paste blocks matching this mask")
                       @ClipboardMask
                           Mask sourceMask) throws WorldEditException {
@@ -173,6 +177,13 @@ public class ClipboardCommands {
         Clipboard clipboard = holder.getClipboard();
         Region region = clipboard.getRegion();
         List<Component> messages = Lists.newArrayList();
+
+        if (randomRotate) {
+            // Rotate a copy of the holder so the session's clipboard transform is left untouched
+            int angle = RandomRotation.randomQuarterTurn(ThreadLocalRandom.current());
+            holder = RandomRotation.rotated(holder, angle);
+            actor.printInfo(TranslatableComponent.of("worldedit.paste.random-rotation", TextComponent.of(angle)));
+        }
 
         BlockVector3 to = atOrigin ? clipboard.getOrigin() : session.getPlacementPosition(actor);
         if (!onlySelect) {

@@ -19,6 +19,7 @@
 
 package com.sk89q.worldedit;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.sk89q.jchronic.Chronic;
 import com.sk89q.jchronic.Options;
@@ -220,6 +221,25 @@ public class LocalSession {
     public void clearHistory() {
         history.clear();
         historyPointer = 0;
+    }
+
+    /**
+     * Get a snapshot of the remembered edit sessions, oldest first.
+     *
+     * @return an immutable copy of the history
+     */
+    public List<EditSession> getHistory() {
+        return ImmutableList.copyOf(history);
+    }
+
+    /**
+     * Get the history pointer. Entries at or beyond this index in
+     * {@link #getHistory()} have been undone and can be redone.
+     *
+     * @return the history pointer
+     */
+    public int getHistoryPointer() {
+        return historyPointer;
     }
 
     /**

@@ -39,6 +39,7 @@ import com.sk89q.worldedit.function.RegionFunction;
 import com.sk89q.worldedit.function.RegionMaskingFilter;
 import com.sk89q.worldedit.function.block.ApplySideEffect;
 import com.sk89q.worldedit.function.block.BlockReplace;
+import com.sk89q.worldedit.function.block.SurfaceLayerFunction;
 import com.sk89q.worldedit.function.generator.FloraGenerator;
 import com.sk89q.worldedit.function.mask.ExistingBlockMask;
 import com.sk89q.worldedit.function.mask.Mask;
@@ -62,6 +63,7 @@ import com.sk89q.worldedit.math.convolution.SnowHeightMap;
 import com.sk89q.worldedit.math.noise.RandomNoise;
 import com.sk89q.worldedit.math.transform.Transform;
 import com.sk89q.worldedit.regions.ConvexPolyhedralRegion;
+import com.sk89q.worldedit.regions.CuboidEdges;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionOperationException;
@@ -281,6 +283,57 @@ public class RegionCommands {
                          Pattern pattern) throws WorldEditException {
         int affected = editSession.makeFaces(region, pattern);
         actor.printInfo(TranslatableComponent.of("worldedit.faces.changed", TextComponent.of(affected)));
+        return affected;
+    }
+
+    @Command(
+        name = "/wireframe",
+        aliases = { "/edges" },
+        desc = "Build the twelve edges of the selection's bounding box",
+        descFooter = "Useful for marking out the frame of a build before filling it in."
+    )
+    @CommandPermissions("worldedit.region.wireframe")
+    @Logging(REGION)
+    public int wireframe(Actor actor, EditSession editSession, @Selection Region region,
+                         @Arg(desc = "The pattern of blocks to set")
+                             Pattern pattern) throws WorldEditException {
+        RegionFunction replace = new BlockReplace(editSession, pattern);
+        int affected = 0;
+        for (BlockVector3 position : CuboidEdges.getEdgePositions(region)) {
+            if (replace.apply(position)) {
+                affected++;
+            }
+        }
+        actor.printInfo(TranslatableComponent.of("worldedit.wireframe.changed", TextComponent.of(affected)));
+        return affected;
+    }
+
+    @Command(
+        name = "/surface",
+        desc = "Replace the top layers of exposed ground in the region",
+        descFooter =
+            """
+            Unlike //overlay, which places blocks on top of the ground, this replaces the ground itself.
+            Example: '//surface sand 3' turns the top three layers of terrain into sand.
+            """
+    )
+    @CommandPermissions("worldedit.region.surface")
+    @Logging(REGION)
+    public int surface(Actor actor, EditSession editSession, @Selection Region region,
+                       @Arg(desc = "The pattern of blocks to set")
+                           Pattern pattern,
+                       @Arg(desc = "The number of layers to replace", def = "1")
+                           int depth,
+                       @ArgFlag(name = 'm', desc = "Only treat blocks matching this mask as ground")
+                           Mask groundMask) throws WorldEditException {
+        checkCommandArgument(depth >= 1, "Depth must be >= 1");
+        Mask ground = groundMask == null ? new ExistingBlockMask(editSession) : groundMask;
+        SurfaceLayerFunction function = new SurfaceLayerFunction(ground, depth, new BlockReplace(editSession, pattern));
+        LayerVisitor visitor = new LayerVisitor(asFlatRegion(region), minimumBlockY(region), maximumBlockY(region), function);
+        Operations.completeLegacy(visitor);
+
+        int affected = function.getAffected();
+        actor.printInfo(TranslatableComponent.of("worldedit.surface.changed", TextComponent.of(affected)));
         return affected;
     }
 

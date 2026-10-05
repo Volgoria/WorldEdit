@@ -28,11 +28,15 @@ import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extent.inventory.BlockBag;
+import com.sk89q.worldedit.session.HistoryEntry;
+import com.sk89q.worldedit.util.formatting.text.Component;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
 import org.enginehub.piston.annotation.Command;
 import org.enginehub.piston.annotation.CommandContainer;
 import org.enginehub.piston.annotation.param.Arg;
+
+import java.util.List;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -141,6 +145,41 @@ public class HistoryCommands {
     public void clearHistory(Actor actor, LocalSession session) {
         session.clearHistory();
         actor.printInfo(TranslatableComponent.of("worldedit.clearhistory.cleared"));
+    }
+
+    @Command(
+        name = "/history",
+        aliases = { "/listhistory" },
+        desc = "List the edits in your history that can be undone or redone"
+    )
+    @CommandPermissions("worldedit.history.list")
+    public void listHistory(Actor actor, LocalSession session,
+                            @Arg(name = "player", desc = "List this player's history instead", def = "")
+                                String playerName) throws WorldEditException {
+        LocalSession historySession = session;
+        if (playerName != null) {
+            actor.checkPermission("worldedit.history.list.other");
+            historySession = worldEdit.getSessionManager().findByName(playerName);
+            if (historySession == null) {
+                actor.printError(TranslatableComponent.of("worldedit.session.cant-find-session", TextComponent.of(playerName)));
+                return;
+            }
+        }
+        List<HistoryEntry> entries = HistoryEntry.summarize(historySession);
+        if (entries.isEmpty()) {
+            actor.printError(TranslatableComponent.of("worldedit.history.empty"));
+            return;
+        }
+        actor.printInfo(TranslatableComponent.of("worldedit.history.header", TextComponent.of(entries.size())));
+        for (HistoryEntry entry : entries) {
+            Component world = entry.worldName() == null
+                ? TranslatableComponent.of("worldedit.history.unknown-world")
+                : TextComponent.of(entry.worldName());
+            String key = entry.undone() ? "worldedit.history.entry.undone" : "worldedit.history.entry";
+            int step = entry.undone() ? 1 - entry.stepsBack() : entry.stepsBack();
+            actor.printInfo(TranslatableComponent.of(key,
+                TextComponent.of(step), TextComponent.of(entry.blocksChanged()), world));
+        }
     }
 
 }
