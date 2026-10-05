@@ -83,14 +83,12 @@ import com.sk89q.worldedit.function.visitor.RegionVisitor;
 import com.sk89q.worldedit.history.UndoContext;
 import com.sk89q.worldedit.history.changeset.BlockOptimizedHistory;
 import com.sk89q.worldedit.history.changeset.ChangeSet;
+import com.sk89q.worldedit.internal.edit.ExpressionOperations;
 import com.sk89q.worldedit.internal.edit.LineGenerator;
 import com.sk89q.worldedit.internal.edit.ShapeGenerator;
 import com.sk89q.worldedit.internal.expression.Expression;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
-import com.sk89q.worldedit.internal.expression.ExpressionTimeoutException;
-import com.sk89q.worldedit.internal.expression.LocalSlot.Variable;
 import com.sk89q.worldedit.internal.util.BlockVector3Set;
-import com.sk89q.worldedit.internal.util.LogManagerCompat;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.MathUtils;
 import com.sk89q.worldedit.math.Vector2;
@@ -106,16 +104,13 @@ import com.sk89q.worldedit.regions.FlatRegion;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.regions.RegionOperationException;
 import com.sk89q.worldedit.regions.Regions;
-import com.sk89q.worldedit.regions.shape.ArbitraryBiomeShape;
 import com.sk89q.worldedit.regions.shape.ArbitraryShape;
 import com.sk89q.worldedit.regions.shape.RegionShape;
-import com.sk89q.worldedit.regions.shape.WorldEditExpressionEnvironment;
 import com.sk89q.worldedit.util.Countable;
 import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.util.SideEffectSet;
 import com.sk89q.worldedit.util.TreeGenerator;
 import com.sk89q.worldedit.util.collection.BlockMap;
-import com.sk89q.worldedit.util.collection.DoubleArrayList;
 import com.sk89q.worldedit.util.eventbus.EventBus;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
@@ -128,8 +123,6 @@ import com.sk89q.worldedit.world.block.BlockStateHolder;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import com.sk89q.worldedit.world.generation.TreeType;
-import com.sk89q.worldedit.world.registry.LegacyMapper;
-import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -139,7 +132,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -160,8 +152,6 @@ import static com.sk89q.worldedit.regions.Regions.minimumBlockY;
  */
 @SuppressWarnings({"FieldCanBeLocal"})
 public class EditSession implements Extent, AutoCloseable {
-
-    private static final Logger LOGGER = LogManagerCompat.getLogger();
 
     /**
      * Used by {@link EditSession#setBlock(BlockVector3, BlockStateHolder, Stage)} to
@@ -2211,8 +2201,7 @@ public class EditSession implements Extent, AutoCloseable {
     public int makeShape(final Region region,
                          Transform transform, final Pattern pattern, final String expressionString, final boolean hollow, final int timeout)
             throws ExpressionException, MaxChangedBlocksException {
-        final Expression expression = Expression.compile(expressionString, "x", "y", "z", "type", "data");
-        expression.optimize();
+        final Expression expression = ExpressionOperations.compile(expressionString, "x", "y", "z", "type", "data");
         return makeShape(region, transform, pattern, expression, hollow, timeout);
     }
 
@@ -2226,69 +2215,7 @@ public class EditSession implements Extent, AutoCloseable {
     public int makeShape(final Region region, Transform transform,
                          final Pattern pattern, final Expression expression, final boolean hollow, final int timeout)
             throws ExpressionException, MaxChangedBlocksException {
-
-        getRequiredVariable("x", expression);
-        getRequiredVariable("y", expression);
-        getRequiredVariable("z", expression);
-
-        final Variable typeVariable = getRequiredVariable("type", expression);
-        final Variable dataVariable = getRequiredVariable("data", expression);
-
-        final WorldEditExpressionEnvironment environment = new WorldEditExpressionEnvironment(this, transform);
-        expression.setEnvironment(environment);
-
-        final int[] timedOut = {0};
-        final Transform transformInverse = transform.inverse();
-        final ArbitraryShape shape = new ArbitraryShape(region) {
-            @Override
-            protected BaseBlock getMaterial(int x, int y, int z, BaseBlock defaultMaterial) {
-                final Vector3 current = Vector3.at(x, y, z);
-                environment.setCurrentBlock(current);
-                final Vector3 inputPosition = transformInverse.apply(current);
-
-                try {
-                    int[] legacy = LegacyMapper.getInstance().getLegacyFromBlock(defaultMaterial.toImmutableState());
-                    int typeVar = -1;
-                    int dataVar = -1;
-                    if (legacy != null) {
-                        typeVar = legacy[0];
-                        if (legacy.length > 1) {
-                            dataVar = legacy[1];
-                        }
-                    }
-                    if (expression.evaluate(new double[]{ inputPosition.x(), inputPosition.y(), inputPosition.z(), typeVar, dataVar}, timeout) <= 0) {
-                        return null;
-                    }
-                    int newType = (int) typeVariable.value();
-                    int newData = (int) dataVariable.value();
-                    if (newType != typeVar || newData != dataVar) {
-                        BlockState state = LegacyMapper.getInstance().getBlockFromLegacy(newType, newData);
-                        return state == null ? defaultMaterial : state.toBaseBlock();
-                    } else {
-                        return defaultMaterial;
-                    }
-                } catch (ExpressionTimeoutException _) {
-                    timedOut[0] = timedOut[0] + 1;
-                    return null;
-                } catch (RuntimeException e) {
-                    throw e;
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
-        int changed = shape.generate(this, pattern, hollow);
-        if (timedOut[0] > 0) {
-            throw new ExpressionTimeoutException(
-                    String.format("%d blocks changed. %d blocks took too long to evaluate (increase with //timeout).",
-                            changed, timedOut[0]));
-        }
-        return changed;
-    }
-
-    private Variable getRequiredVariable(String name, Expression expression) {
-        return expression.getSlots().getVariable(name)
-            .orElseThrow(() -> new IllegalStateException("Expression is missing required variable: " + name));
+        return ExpressionOperations.makeShape(this, region, transform, pattern, expression, hollow, timeout);
     }
 
     /**
@@ -2333,8 +2260,7 @@ public class EditSession implements Extent, AutoCloseable {
     @Deprecated
     public int deformRegion(final Region region, final Vector3 zero, final Vector3 unit, final String expressionString,
                             final int timeout) throws ExpressionException, MaxChangedBlocksException {
-        final Expression expression = Expression.compile(expressionString, "x", "y", "z");
-        expression.optimize();
+        final Expression expression = ExpressionOperations.compile(expressionString, "x", "y", "z");
         return deformRegion(region, zero, unit, expression, timeout);
     }
 
@@ -2355,8 +2281,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int deformRegion(final Region region, final Transform targetTransform, final String expressionString,
                             final int timeout, InputExtent sourceExtent, Transform sourceTransform) throws ExpressionException, MaxChangedBlocksException {
-        final Expression expression = Expression.compile(expressionString, "x", "y", "z");
-        expression.optimize();
+        final Expression expression = ExpressionOperations.compile(expressionString, "x", "y", "z");
         return deformRegion(region, targetTransform, expression, timeout, sourceExtent, sourceTransform);
     }
 
@@ -2391,52 +2316,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int deformRegion(final Region region, final Transform targetTransform, final Expression expression,
                             final int timeout, InputExtent sourceExtent, final Transform sourceTransform) throws ExpressionException, MaxChangedBlocksException {
-        final Variable x = expression.getSlots().getVariable("x")
-            .orElseThrow(IllegalStateException::new);
-        final Variable y = expression.getSlots().getVariable("y")
-            .orElseThrow(IllegalStateException::new);
-        final Variable z = expression.getSlots().getVariable("z")
-            .orElseThrow(IllegalStateException::new);
-
-        final WorldEditExpressionEnvironment environment = new WorldEditExpressionEnvironment(this, targetTransform);
-        expression.setEnvironment(environment);
-
-        final DoubleArrayList<BlockVector3, BaseBlock> queue = new DoubleArrayList<>(false);
-
-        final Transform targetTransformInverse = targetTransform.inverse();
-        for (BlockVector3 targetBlockPosition : region) {
-            final Vector3 targetPosition = targetBlockPosition.toVector3();
-            environment.setCurrentBlock(targetPosition);
-
-            // transform from target coordinates
-            final Vector3 inputPosition = targetTransformInverse.apply(targetPosition);
-
-            // deform
-            expression.evaluate(new double[]{ inputPosition.x(), inputPosition.y(), inputPosition.z() }, timeout);
-            final Vector3 outputPosition = Vector3.at(x.value(), y.value(), z.value());
-
-            // transform to source coordinates, round-nearest
-            final BlockVector3 sourcePosition = sourceTransform.apply(outputPosition).add(0.5, 0.5, 0.5).toBlockPoint();
-
-            // read block from source extent (e.g. world/clipboard)
-            final BaseBlock material = sourceExtent.getFullBlock(sourcePosition);
-
-            // queue operation
-            queue.put(targetBlockPosition, material);
-        }
-
-        int affected = 0;
-        for (Map.Entry<BlockVector3, BaseBlock> entry : queue) {
-            BlockVector3 targetPosition = entry.getKey();
-            BaseBlock material = entry.getValue();
-
-            // set at new targetPosition
-            if (setBlock(targetPosition, material)) {
-                ++affected;
-            }
-        }
-
-        return affected;
+        return ExpressionOperations.deformRegion(this, region, targetTransform, expression, timeout, sourceExtent, sourceTransform);
     }
 
     /**
@@ -2645,46 +2525,7 @@ public class EditSession implements Extent, AutoCloseable {
      */
     public int makeBiomeShape(final Region region, Transform transform, final BiomeType biomeType,
                               final String expressionString, final boolean hollow, final int timeout) throws ExpressionException {
-
-        final Expression expression = Expression.compile(expressionString, "x", "y", "z");
-        expression.optimize();
-
-        final EditSession editSession = this;
-        final WorldEditExpressionEnvironment environment = new WorldEditExpressionEnvironment(editSession, transform);
-        expression.setEnvironment(environment);
-
-        AtomicInteger timedOut = new AtomicInteger();
-        final Transform transformInverse = transform.inverse();
-        final ArbitraryBiomeShape shape = new ArbitraryBiomeShape(region) {
-            @Override
-            protected BiomeType getBiome(int x, int y, int z, BiomeType defaultBiomeType) {
-                final Vector3 current = Vector3.at(x, y, z);
-                environment.setCurrentBlock(current);
-                final Vector3 inputPosition = transformInverse.apply(current);
-
-                try {
-                    if (expression.evaluate(new double[]{ inputPosition.x(), inputPosition.y(), inputPosition.z() }, timeout) <= 0) {
-                        return null;
-                    }
-
-                    // TODO: Allow biome setting via a script variable (needs BiomeType<->int mapping)
-                    return defaultBiomeType;
-                } catch (ExpressionTimeoutException _) {
-                    timedOut.getAndIncrement();
-                    return null;
-                } catch (Exception e) {
-                    LOGGER.warn("Failed to create shape", e);
-                    return null;
-                }
-            }
-        };
-        int changed = shape.generate(this, biomeType, hollow);
-        if (timedOut.get() > 0) {
-            throw new ExpressionTimeoutException(
-                    String.format("%d biomes changed. %d biomes took too long to evaluate (increase time with //timeout)",
-                            changed, timedOut.get()));
-        }
-        return changed;
+        return ExpressionOperations.makeBiomeShape(this, region, transform, biomeType, expressionString, hollow, timeout);
     }
 
     public int morph(BlockVector3 position, double brushSize, int minErodeFaces, int numErodeIterations, int minDilateFaces, int numDilateIterations) throws MaxChangedBlocksException {
