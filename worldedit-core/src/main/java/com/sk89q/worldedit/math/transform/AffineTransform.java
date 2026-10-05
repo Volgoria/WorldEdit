@@ -274,10 +274,29 @@ public record AffineTransform(
                 vector.x() * m20 + vector.y() * m21 + vector.z() * m22 + m23);
     }
 
+    /**
+     * Combines this transform with another affine transform.
+     *
+     * <p>Note that, unlike {@link #combine(Transform)} with a non-affine
+     * transform, {@code other} is applied <em>first</em> and this transform
+     * second: this is the same as {@link #concatenate(AffineTransform)}.</p>
+     *
+     * @param other the transform to apply first
+     * @return the composition {@code this * other}
+     */
     public AffineTransform combine(AffineTransform other) {
         return concatenate(other);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>If {@code other} is an {@link AffineTransform}, it is applied
+     * <em>first</em> and this transform second, as with
+     * {@link #concatenate(AffineTransform)}. Otherwise, this transform is
+     * applied first and {@code other} second, using a
+     * {@link CombinedTransform}.</p>
+     */
     @Override
     public Transform combine(Transform other) {
         if (other instanceof AffineTransform otherTransform) {

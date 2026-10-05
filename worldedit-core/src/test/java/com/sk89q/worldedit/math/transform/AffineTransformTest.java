@@ -172,13 +172,29 @@ public class AffineTransformTest {
 
     @Test
     void combineWithAffineMatchesConcatenate() {
-        // NB: Transform#combine documents `other` as occurring second, but AffineTransform#combine
-        // with another AffineTransform delegates to concatenate, which applies `other` first.
-        // This test pins the current behaviour so a change to it is a deliberate one.
+        // As documented on Transform#combine and AffineTransform#combine, combining two affine
+        // transforms applies `other` first (this * other), unlike the non-affine case below.
+        // Clipboard commands such as //rotate and //flip rely on this order.
         AffineTransform translate = new AffineTransform().translate(10, 0, 0);
         AffineTransform rotate = new AffineTransform().rotateY(90);
         assertEquals(rotate.concatenate(translate), rotate.combine(translate));
         assertEquals(rotate.concatenate(translate), rotate.combine((Transform) translate));
+        // translate first, then rotate
+        assertVectorEquals(Vector3.at(0, 0, -10), rotate.combine(translate).apply(Vector3.ZERO));
+        assertVectorEquals(Vector3.at(0, 0, -10), rotate.combine((Transform) translate).apply(Vector3.ZERO));
+    }
+
+    @Test
+    void clipboardStyleStackingAppliesNewestTransformFirst() {
+        // //rotate 90 followed by //flip (east-west) stacks as holder.getTransform().combine(flip),
+        // so the flip happens in the clipboard's original frame, before the rotation.
+        Transform rotated = new Identity().combine(new AffineTransform().rotateY(-90));
+        AffineTransform flipX = new AffineTransform().scale(-1, 1, 1);
+        Transform stacked = rotated.combine(flipX);
+        // (1, 0, 0) -> flip -> (-1, 0, 0) -> rotateY(-90) -> (0, 0, -1)
+        assertVectorExact(Vector3.at(0, 0, -1), stacked.apply(Vector3.UNIT_X));
+        // applying the flip after the rotation would instead give (1, 0, 0) -> (0, 0, 1) -> (0, 0, 1)
+        assertVectorExact(Vector3.at(0, 0, 1), flipX.apply(rotated.apply(Vector3.UNIT_X)));
     }
 
     @Test

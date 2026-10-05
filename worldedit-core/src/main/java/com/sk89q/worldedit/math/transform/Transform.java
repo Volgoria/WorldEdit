@@ -53,7 +53,35 @@ public interface Transform {
     /**
      * Create a new {@link Transform} that combines this transform with another.
      *
-     * @param other the other transform to occur second
+     * <p>The order in which the two transforms are applied is
+     * implementation-dependent:</p>
+     *
+     * <ul>
+     *     <li>{@link CombinedTransform}, {@link ScaleAndTranslateTransform}
+     *     and {@link AffineTransform} combined with a transform that is
+     *     <em>not</em> an {@code AffineTransform} apply this transform first
+     *     and {@code other} second.</li>
+     *     <li>{@link AffineTransform} combined with another
+     *     {@code AffineTransform} applies {@code other} <em>first</em> and this
+     *     transform second (matrix product {@code this * other}, see
+     *     {@link AffineTransform#concatenate(AffineTransform)}).</li>
+     *     <li>{@link Identity} returns {@code other}, so the order does not
+     *     matter.</li>
+     * </ul>
+     *
+     * <p>The affine behaviour is relied upon by clipboard transforms:
+     * {@code //rotate}, {@code //flip} and randomly rotated clipboard brushes
+     * combine the clipboard's current transform with the new one, so a newly
+     * added rotation or flip is applied in the clipboard's original frame,
+     * before the transforms that were added earlier. Changing it would change
+     * the result of stacking a flip on a rotation, or of rotations around
+     * different axes. Callers that need a specific order should use
+     * {@link AffineTransform#concatenate(AffineTransform)} /
+     * {@link AffineTransform#preConcatenate(AffineTransform)} or construct a
+     * {@link CombinedTransform}, which always applies its transforms in
+     * order.</p>
+     *
+     * @param other the other transform
      * @return a new transform
      */
     Transform combine(Transform other);
