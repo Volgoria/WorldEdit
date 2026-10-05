@@ -36,6 +36,8 @@ import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.registry.Registry;
 import com.sk89q.worldedit.util.collection.BlockMap;
 import com.sk89q.worldedit.util.collection.LocatedBlockList;
+import com.sk89q.worldedit.util.test.InMemoryWorld;
+import com.sk89q.worldedit.util.test.SimpleMaterialRegistries;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
@@ -58,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.when;
 
 /**
  * Micro-benchmarks for core hot paths, run against in-memory extents.
@@ -265,6 +268,29 @@ class CoreHotPathBenchmark extends BaseWorldEditTest {
             try (EditSession session = WorldEdit.getInstance().newEditSessionBuilder().world(null).build()) {
                 return session.drawLine(stone, List.of(BlockVector3.at(0, 0, 0), BlockVector3.at(300, 40, 120)), 6, false);
             }
+        });
+    }
+
+    @Test
+    void hollowOutRegion() throws Exception {
+        when(MOCKED_PLATFORM.getRegistries()).thenReturn(SimpleMaterialRegistries.create());
+        BlockState air = new BlockType("benchhollow:air").getDefaultState();
+        BlockState solid = new BlockType("benchhollow:stone").getDefaultState();
+        BlockState glass = new BlockType("benchhollow:glass").getDefaultState();
+        CuboidRegion region = new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(47, 47, 47));
+        BlockVector3 center = BlockVector3.at(24, 24, 24);
+        bench("EditSession.hollowOutRegion 48^3 sphere", () -> {
+            InMemoryWorld world = new InMemoryWorld(air, -64, 319);
+            for (BlockVector3 position : region) {
+                if (position.distance(center) <= 20) {
+                    world.blocks().put(position, solid);
+                }
+            }
+            try (EditSession session = WorldEdit.getInstance().newEditSessionBuilder().world(world.world()).build()) {
+                session.hollowOutRegion(region, 2, glass);
+            }
+            // world reads are the expensive part on a real server
+            return world.getBlockReads();
         });
     }
 }

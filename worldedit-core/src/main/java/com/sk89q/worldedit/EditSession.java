@@ -87,6 +87,7 @@ import com.sk89q.worldedit.internal.expression.Expression;
 import com.sk89q.worldedit.internal.expression.ExpressionException;
 import com.sk89q.worldedit.internal.expression.ExpressionTimeoutException;
 import com.sk89q.worldedit.internal.expression.LocalSlot.Variable;
+import com.sk89q.worldedit.internal.util.BlockVector3Set;
 import com.sk89q.worldedit.internal.util.LogManagerCompat;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.MathUtils;
@@ -2692,7 +2693,7 @@ public class EditSession implements Extent, AutoCloseable {
     public int hollowOutRegion(Region region, int thickness, Pattern pattern) throws MaxChangedBlocksException {
         int affected = 0;
 
-        final Set<BlockVector3> outside = new HashSet<>();
+        final BlockVector3Set outside = new BlockVector3Set();
 
         final BlockVector3 min = region.getMinimumPoint();
         final BlockVector3 max = region.getMaximumPoint();
@@ -2725,7 +2726,7 @@ public class EditSession implements Extent, AutoCloseable {
             }
         }
 
-        final Set<BlockVector3> newOutside = new HashSet<>();
+        final List<BlockVector3> newOutside = new ArrayList<>();
         for (int i = 1; i < thickness; ++i) {
             outer: for (BlockVector3 position : region) {
                 for (BlockVector3 recurseDirection : recurseDirections) {
@@ -2738,7 +2739,9 @@ public class EditSession implements Extent, AutoCloseable {
                 }
             }
 
-            outside.addAll(newOutside);
+            for (BlockVector3 position : newOutside) {
+                outside.add(position);
+            }
             newOutside.clear();
         }
 
@@ -2939,27 +2942,32 @@ public class EditSession implements Extent, AutoCloseable {
         return returnset;
     }
 
-    private void recurseHollow(Region region, BlockVector3 origin, Set<BlockVector3> outside) {
+    private void recurseHollow(Region region, BlockVector3 origin, BlockVector3Set outside) {
         var queue = new ArrayDeque<BlockVector3>();
         queue.addLast(origin);
 
         while (!queue.isEmpty()) {
             final BlockVector3 current = queue.removeFirst();
+            // Only non-solid blocks are ever added, so a known position needs no lookup
+            if (outside.contains(current)) {
+                continue;
+            }
             final BlockState block = getBlock(current);
             if (block.getBlockType().getMaterial().isSolid()) {
                 continue;
             }
 
-            if (!outside.add(current)) {
-                continue;
-            }
+            outside.add(current);
 
             if (!region.contains(current)) {
                 continue;
             }
 
             for (BlockVector3 recurseDirection : recurseDirections) {
-                queue.addLast(current.add(recurseDirection));
+                BlockVector3 neighbor = current.add(recurseDirection);
+                if (!outside.contains(neighbor)) {
+                    queue.addLast(neighbor);
+                }
             }
         }
     }
