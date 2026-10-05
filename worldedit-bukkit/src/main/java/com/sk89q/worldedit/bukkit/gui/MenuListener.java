@@ -32,6 +32,7 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 /**
@@ -41,15 +42,32 @@ import javax.annotation.Nullable;
  * players can neither take icons out nor put their own items in. Clicks on
  * menu slots are forwarded to the menu on the next tick, because opening or
  * closing inventories from inside a click event is unsafe.</p>
+ *
+ * <p>The menu logic runs at {@link EventPriority#LOWEST}, and the cancellation
+ * is asserted again at {@link EventPriority#HIGHEST}, even for events another
+ * plugin has un-cancelled in between, so no other listener can let an icon
+ * out of a menu.</p>
  */
 public final class MenuListener implements Listener {
 
     private static final Logger LOGGER = LogManagerCompat.getLogger();
 
     private final GuiScheduler scheduler;
+    private final Predicate<Inventory> isMenu;
 
     public MenuListener(GuiScheduler scheduler) {
+        this(scheduler, inventory -> menuOf(inventory) != null);
+    }
+
+    /**
+     * Create a listener with a custom menu test, for unit tests.
+     *
+     * @param scheduler the scheduler
+     * @param isMenu whether an inventory belongs to a menu
+     */
+    MenuListener(GuiScheduler scheduler, Predicate<Inventory> isMenu) {
         this.scheduler = scheduler;
+        this.isMenu = isMenu;
     }
 
     @Nullable
@@ -95,6 +113,30 @@ public final class MenuListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onDrag(InventoryDragEvent event) {
         if (menuOf(event.getView().getTopInventory()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Cancel clicks in menus again, after every other plugin had its say.
+     *
+     * @param event the event
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void enforceClickCancelled(InventoryClickEvent event) {
+        if (isMenu.test(event.getView().getTopInventory())) {
+            event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Cancel drags in menus again, after every other plugin had its say.
+     *
+     * @param event the event
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void enforceDragCancelled(InventoryDragEvent event) {
+        if (isMenu.test(event.getView().getTopInventory())) {
             event.setCancelled(true);
         }
     }

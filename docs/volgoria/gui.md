@@ -43,7 +43,8 @@ La complétion par tabulation propose les sections. Seuls les joueurs peuvent ou
 
 - Tous les clics et glisser-déposer sont **annulés** tant qu'un menu est ouvert : impossible de
   prendre une icône ou de déposer un objet, y compris depuis son propre inventaire (shift-clic,
-  touches numériques). Le double-clic est ignoré.
+  touches numériques). Le double-clic est ignoré. L'annulation est réaffirmée en priorité
+  `HIGHEST` : un autre plugin qui « dé-annulerait » le clic ne peut pas laisser sortir une icône.
 - Le clic est traité au tick suivant (un son de bouton confirme l'action).
 - Sauf mention contraire, **clic gauche** et **clic droit** font la même chose. Les boutons qui
   distinguent les clics l'indiquent en jaune dans leur description.
