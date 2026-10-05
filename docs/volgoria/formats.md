@@ -133,7 +133,7 @@ Utilisé par `//image`, `//topview`, `//heightmap` et le menu Images.
 - Les noms sont relatifs à ce dossier ; les sous-dossiers sont permis, mais pas les chemins qui en
   sortent. Les règles de noms de fichiers de WorldEdit s'appliquent (comme pour les schematics).
 - **Lecture** : `png`, `jpg`, `jpeg`, `gif`, `bmp`. Sans extension, `.png` est supposé. Images
-  limitées à 4096 × 4096 pixels.
+  limitées à 2048 × 2048 pixels (4 mégapixels ; plus grandes, elles sont refusées avant décodage).
 - **Écriture** : toujours en PNG (`.png` ajouté si absent). Un fichier existant n'est remplacé
   qu'avec `-f`.
 - Le menu `/wegui images` liste les fichiers de ce dossier (sous-dossiers inclus).

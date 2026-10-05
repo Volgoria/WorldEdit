@@ -44,9 +44,11 @@ public final class Images {
     public static final ImmutableList<String> READ_EXTENSIONS = ImmutableList.of("png", "jpg", "jpeg", "gif", "bmp");
 
     /**
-     * The largest number of pixels an image may have to be read.
+     * The largest number of pixels an image may have to be read: 2048 x 2048
+     * (4 megapixels, 16 MB once decoded). Images are scaled down to at most
+     * 1024 blocks a side anyway, so larger sources only cost memory and time.
      */
-    public static final long MAX_PIXELS = 4096L * 4096L;
+    public static final long MAX_PIXELS = 2048L * 2048L;
 
     private Images() {
     }

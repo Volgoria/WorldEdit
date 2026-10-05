@@ -467,8 +467,8 @@ plus proche. Les pixels transparents sont ignorés.
 Sans `-s`, l'image est posée à plat au niveau du sol devant vous (ou debout, 2 blocs devant vous
 avec `-v`), centrée sur votre position et orientée selon votre regard. Avec `-s`, elle couvre
 l'emprise horizontale de la sélection (à plat, au niveau Y minimal) ou, avec `-v`, sa plus grande face
-verticale. Taille maximale : **1024 × 1024 blocs**. Les images sources sont limitées à 4096 × 4096
-pixels. Hors joueur (console), `-s` est obligatoire.
+verticale. Taille maximale : **1024 × 1024 blocs**. Les images sources sont limitées à 2048 × 2048
+pixels (4 mégapixels). Hors joueur (console), `-s` est obligatoire.
 
 ```
 //image logo.png 64

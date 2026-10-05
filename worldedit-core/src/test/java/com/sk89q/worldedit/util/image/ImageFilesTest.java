@@ -103,4 +103,15 @@ class ImageFilesTest extends BaseWorldEditTest {
         assertThrows(IOException.class, () -> Images.read(file, 64 * 63));
         assertEquals(64, Images.read(file, 64 * 64).getWidth());
     }
+
+    @Test
+    @DisplayName("limits decoded images to 4 megapixels")
+    void defaultLimitIsFourMegapixels() throws Exception {
+        assertEquals(2048L * 2048L, Images.MAX_PIXELS);
+        // //image never places more than 1024 blocks a side, so 2048 pixels a side is plenty
+        assertTrue(Images.MAX_PIXELS >= 1024L * 1024L);
+        File file = new File(imagesDir(), "tall.png");
+        Images.writePng(new BufferedImage(1, 2048 * 2048 + 1, BufferedImage.TYPE_BYTE_GRAY), file);
+        assertThrows(IOException.class, () -> Images.read(file, Images.MAX_PIXELS));
+    }
 }
