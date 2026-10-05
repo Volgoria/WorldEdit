@@ -102,6 +102,9 @@ public final class MenuListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onClose(InventoryCloseEvent event) {
         Menu menu = menuOf(event.getInventory());
+        if (menu != null) {
+            OpenMenus.tracked().closed(event.getInventory());
+        }
         if (menu != null && event.getPlayer() instanceof Player player) {
             menu.onClose(player);
         }

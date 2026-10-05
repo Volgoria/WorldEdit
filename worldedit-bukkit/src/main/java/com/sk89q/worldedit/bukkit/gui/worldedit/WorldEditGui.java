@@ -28,6 +28,7 @@ import com.sk89q.worldedit.bukkit.gui.ChatPrompts;
 import com.sk89q.worldedit.bukkit.gui.GuiScheduler;
 import com.sk89q.worldedit.bukkit.gui.Menu;
 import com.sk89q.worldedit.bukkit.gui.MenuListener;
+import com.sk89q.worldedit.bukkit.gui.OpenMenus;
 import com.sk89q.worldedit.bukkit.gui.Text;
 import com.sk89q.worldedit.event.platform.CommandEvent;
 import com.sk89q.worldedit.util.image.ImageFiles;
@@ -106,19 +107,35 @@ public final class WorldEditGui implements Listener {
     /**
      * Close every open menu so no menu inventory outlives the plugin, and
      * forget all pending prompts.
+     *
+     * <p>On Folia an inventory may only be closed from its viewer's region
+     * thread, so closing is scheduled on each viewer's entity scheduler when
+     * that is still possible. Either way, every menu inventory is emptied:
+     * once the listeners are unregistered nothing cancels clicks any more, and
+     * an empty menu has no icons left to take.</p>
      */
     public void disable() {
         prompts.clear();
         states.clear();
-        if (plugin.isFolia()) {
-            // Inventories may only be touched from their owner's region thread.
-            return;
-        }
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (player.getOpenInventory().getTopInventory().getHolder() instanceof Menu) {
+            if (!(player.getOpenInventory().getTopInventory().getHolder() instanceof Menu)) {
+                continue;
+            }
+            if (!plugin.isFolia()) {
                 player.closeInventory();
+            } else if (plugin.isEnabled()) {
+                try {
+                    player.getScheduler().run(plugin, _ -> {
+                        if (player.getOpenInventory().getTopInventory().getHolder() instanceof Menu) {
+                            player.closeInventory();
+                        }
+                    }, null);
+                } catch (RuntimeException _) {
+                    // The plugin is being disabled; emptying the menus below is enough
+                }
             }
         }
+        OpenMenus.tracked().clearAll();
     }
 
     @EventHandler

@@ -383,8 +383,9 @@ Contrôles :
   **planificateur du joueur** (`player.getScheduler()` sous Folia, planificateur Bukkit sinon), donc
   sur le thread de la région qui possède le joueur.
 - Les tâches d'un joueur déconnecté sont abandonnées.
-- À l'arrêt du plugin, les questions en attente et les choix mémorisés sont effacés. Sur
-  Bukkit/Paper, les menus ouverts sont aussi fermés ; **sous Folia, ils ne le sont pas** (un
-  inventaire ne peut être manipulé que depuis le thread de sa région). Comme les écouteurs du menu
-  sont désactivés avec le plugin, un menu resté ouvert n'est plus protégé : évitez de recharger ou
-  d'arrêter WorldEdit pendant que des joueurs ont le menu ouvert.
+- À l'arrêt du plugin, les questions en attente et les choix mémorisés sont effacés, et **tous les
+  menus ouverts sont vidés** de leurs icônes : même si un menu reste affiché après la désactivation
+  des écouteurs, il n'y a plus rien à y prendre. Sur Bukkit/Paper, les menus ouverts sont aussi
+  fermés ; sous Folia, leur fermeture est planifiée sur le thread du joueur quand c'est encore
+  possible (un inventaire ne peut être manipulé que depuis le thread de sa région), sinon le joueur
+  garde un menu vide qu'il peut fermer lui-même.

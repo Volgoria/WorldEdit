@@ -99,6 +99,7 @@ public abstract class Menu implements InventoryHolder {
     @SuppressWarnings("deprecation") // String titles keep Spigot compatibility
     public void open(Player player) {
         inventory = Bukkit.createInventory(this, rows * 9, title);
+        OpenMenus.tracked().opened(inventory);
         render(player);
         player.openInventory(inventory);
     }
