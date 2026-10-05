@@ -73,6 +73,25 @@ dependencies {
 
 tasks.test {
     maxHeapSize = "1G"
+    useJUnitPlatform {
+        excludeTags("isolated-registry")
+    }
+}
+
+// Tests that register vanilla block types before BlockTypes is first loaded need a JVM of their own
+val isolatedRegistryTest = tasks.register<Test>("isolatedRegistryTest") {
+    description = "Runs tests that need a fresh JVM to register vanilla block types."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    maxHeapSize = "512M"
+    useJUnitPlatform {
+        includeTags("isolated-registry")
+    }
+}
+
+tasks.check {
+    dependsOn(isolatedRegistryTest)
 }
 
 tasks.compileJava {
