@@ -176,22 +176,14 @@ public class SessionManager {
             session.setConfiguration(config);
             session.setBlockChangeLimit(config.defaultChangeLimit);
             session.setTimeout(config.calculationTimeout);
-            try {
-                String sessionItem = session.isWandItemDefault() ? null : session.getWandItem();
-                setDefaultWand(sessionItem, config.wandItem, session, new SelectionWand());
-            } catch (InvalidToolBindException e) {
-                if (warnedInvalidTool.add("selwand")) {
-                    LOGGER.warn("Invalid selection wand tool set in config. Tool will not be assigned: " + e.getItemType());
-                }
-            }
-            try {
-                String sessionItem = session.isNavWandItemDefault() ? null : session.getNavWandItem();
-                setDefaultWand(sessionItem, config.navigationWand, session, new NavigationWand());
-            } catch (InvalidToolBindException e) {
-                if (warnedInvalidTool.add("navwand")) {
-                    LOGGER.warn("Invalid navigation wand tool set in config. Tool will not be assigned: " + e.getItemType());
-                }
-            }
+            setDefaultWand(
+                session.isWandItemDefault() ? null : session.getWandItem(), config.wandItem,
+                session, new SelectionWand(), "selection"
+            );
+            setDefaultWand(
+                session.isNavWandItemDefault() ? null : session.getNavWandItem(), config.navigationWand,
+                session, new NavigationWand(), "navigation"
+            );
             session.compareAndResetDirty();
 
             // Remember the session regardless of if it's currently active or not.
@@ -229,7 +221,12 @@ public class SessionManager {
         return false;
     }
 
-    private void setDefaultWand(String sessionItem, String configItem, LocalSession session, Tool wand) throws InvalidToolBindException {
+    /**
+     * Bind a wand to the session's preferred item, falling back to the configured item.
+     * An item that cannot hold a tool is reported once per wand kind and otherwise ignored.
+     */
+    private static void setDefaultWand(@Nullable String sessionItem, String configItem, LocalSession session,
+                                       Tool wand, String wandName) {
         ItemType wandItem = null;
         if (sessionItem != null) {
             wandItem = ItemTypes.get(sessionItem);
@@ -237,8 +234,15 @@ public class SessionManager {
         if (wandItem == null) {
             wandItem = ItemTypes.get(configItem);
         }
-        if (wandItem != null) {
+        if (wandItem == null) {
+            return;
+        }
+        try {
             session.setTool(wandItem, wand);
+        } catch (InvalidToolBindException e) {
+            if (warnedInvalidTool.add(wandName)) {
+                LOGGER.warn("Invalid " + wandName + " wand tool set in config. Tool will not be assigned: " + e.getItemType());
+            }
         }
     }
 
